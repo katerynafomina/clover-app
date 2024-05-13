@@ -26,11 +26,13 @@ export default function Register() {
       error,
     } = await supabase.auth.signUp({
       email: email,
+      
       password: password,
     })
 
     if (error) Alert.alert(error.message)
-      if (!session) Alert.alert('Please check your inbox for email verification!')
+    if (!session) Alert.alert('Please check your inbox for email verification!')
+    
       navigation.navigate('Auth')
     setLoading(false)
   }

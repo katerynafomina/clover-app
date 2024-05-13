@@ -81,7 +81,7 @@ export default function Home() {
       <Text>основний аутфіт</Text>
       <Text>верхній одяг та аксесуари</Text>
       
-      <Text>Ідентифікатор користувача: { username }</Text>
+      <Text>Ідентифікатор користувача: { session?.user.email }</Text>
 
       {/* Виведення елементів гардеробу */}
       <Text style={styles.sectionTitle}>Елементи гардеробу:</Text>
