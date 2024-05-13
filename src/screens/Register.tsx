@@ -13,7 +13,14 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
-    const navigation = useNavigation() as NavigationProp<any>;
+  const navigation = useNavigation() as NavigationProp<any>;
+  AppState.addEventListener('change', (state) => {
+  if (state === 'active') {
+    supabase.auth.startAutoRefresh()
+  } else {
+    supabase.auth.stopAutoRefresh()
+  }
+  })
 
   async function signInWithEmail() {
     navigation.navigate('Auth')
@@ -30,11 +37,15 @@ export default function Register() {
       password: password,
     })
 
-    if (error) Alert.alert(error.message)
-    if (!session) Alert.alert('Please check your inbox for email verification!')
+    if (error) {
+      Alert.alert(error.message)
+      console.log(error)
+    }
     
-      navigation.navigate('Auth')
+    
+    
     setLoading(false)
+    navigation.navigate('Auth')
   }
 
   return (
