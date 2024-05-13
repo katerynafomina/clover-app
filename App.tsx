@@ -8,6 +8,8 @@ import { Session } from '@supabase/supabase-js'
 import { NavigationContainer } from '@react-navigation/native'
 import { createStackNavigator } from '@react-navigation/stack'
 import Register from './src/screens/Register'
+import Home from './src/screens/Home'
+import React from 'react'
 
 export default function App() {
   
@@ -38,10 +40,7 @@ const Layout = () => {
       <Stack.Navigator>
         {session && session.user ? (
           <>
-           <Stack.Screen
-            name="Account"
-            component={Account}
-          />
+            <Stack.Screen name="Home" component={Home} />
           </>
         ) : (
           <>
@@ -49,6 +48,11 @@ const Layout = () => {
           </>
         )}
         <Stack.Screen name="Register" component={Register} />
+        
+        <Stack.Screen
+            name="Account"
+            component={Account}
+          />
       </Stack.Navigator>
     </NavigationContainer>
   )

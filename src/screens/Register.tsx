@@ -2,23 +2,18 @@ import React, { useState } from 'react'
 import { Alert, StyleSheet, View, AppState } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { Button, Input } from 'react-native-elements'
-
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
 // `onAuthStateChange` events with the `TOKEN_REFRESHED` or `SIGNED_OUT` event
 // if the user's session is terminated. This should only be registered once.
-AppState.addEventListener('change', (state) => {
-  if (state === 'active') {
-    supabase.auth.startAutoRefresh()
-  } else {
-    supabase.auth.stopAutoRefresh()
-  }
-})
 
-export default function Register(navigation: any) {
+
+export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const navigation = useNavigation() as NavigationProp<any>;
 
   async function signInWithEmail() {
     navigation.navigate('Auth')
@@ -35,7 +30,8 @@ export default function Register(navigation: any) {
     })
 
     if (error) Alert.alert(error.message)
-    if (!session) Alert.alert('Please check your inbox for email verification!')
+      if (!session) Alert.alert('Please check your inbox for email verification!')
+      navigation.navigate('Auth')
     setLoading(false)
   }
 

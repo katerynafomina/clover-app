@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { StyleSheet, View, Alert } from 'react-native'
 import { Button, Input } from 'react-native-elements'
 import { Session } from '@supabase/supabase-js'
+import React from 'react'
 
 export default function Account() {
   const [session, setSession] = useState<Session | null>(null)

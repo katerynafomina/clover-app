@@ -2,9 +2,7 @@ import React, { useState } from 'react'
 import { Alert, StyleSheet, View, AppState } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { Button, Input } from 'react-native-elements'
-import { useNavigation } from 'expo-router'
-import { router } from 'expo-router'
-
+import { useNavigation, NavigationProp } from '@react-navigation/native'; // Імпорт NavigationProp з '@react-navigation/native'
 
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
@@ -18,10 +16,11 @@ AppState.addEventListener('change', (state) => {
   }
 })
 
-export default function Auth(navigation: any) {
+export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const navigation = useNavigation() as NavigationProp<any>; // Явне вказання типу для navigation
 
   async function signInWithEmail() {
     setLoading(true)
@@ -30,13 +29,17 @@ export default function Auth(navigation: any) {
       password: password,
     })
 
-    if (error) Alert.alert(error.message)
-    router.navigate('Account')
+    if (error) {
+      Alert.alert(error.message)
+    } else {
+      navigation.navigate('Account') // Використання navigation з явно вказаним типом
+    }
+
     setLoading(false)
   }
 
   async function signUpWithEmail() {
-    router.navigate('Register')
+    navigation.navigate('Register') // Використання navigation з явно вказаним типом
   }
 
   return (
@@ -63,10 +66,18 @@ export default function Auth(navigation: any) {
         />
       </View>
       <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Button title="Вхід" disabled={loading} onPress={() => signInWithEmail()} />
+        <Button
+          title="Вхід"
+          disabled={loading}
+          onPress={() => signInWithEmail() as any} // Явне вказання типу для onPress
+        />
       </View>
       <View style={styles.verticallySpaced}>
-        <Button title="Зареєструватись" disabled={loading} onPress={() => signUpWithEmail()} />
+        <Button
+          title="Зареєструватись"
+          disabled={loading}
+          onPress={() => signUpWithEmail() as any} // Явне вказання типу для onPress
+        />
       </View>
     </View>
   )
