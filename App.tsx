@@ -14,6 +14,7 @@ import { Session } from '@supabase/supabase-js';
 import Calendar from './src/screens/Calendar';
 import AddItemScreen from './src/screens/AddItemScreen';
 import CategoryDetailsScreen from './src/screens/CategoryDetailsScreen';
+import DayOutfit from './src/screens/DayOutfit';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -47,6 +48,28 @@ const ClosetStack = () => {
 
 }
 
+const CalendarStack = () => {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="Calendar"
+        component={Calendar}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name='DayOutfit'
+        component={DayOutfit}
+        options={{
+          headerShown: false,
+        }}
+      />
+    </Stack.Navigator>
+  );
+
+}
+
 const HomeTabs = () => {
   return (
     <Tab.Navigator>
@@ -68,8 +91,8 @@ const HomeTabs = () => {
           ),
         }}
       />
-      <Tab.Screen name="Calendar"
-        component={Calendar}
+      <Tab.Screen name="Outfits"
+        component={CalendarStack}
         options={{
           headerShown: false,
           tabBarIcon: ({ color }) => (

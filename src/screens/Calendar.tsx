@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { CalendarList } from 'react-native-calendars';
-import { router } from 'expo-router';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 
 type MonthNames = {
   [key: string]: string;
@@ -23,7 +23,9 @@ const monthNames: MonthNames = {
 };
 
 export default function Calendar() {
-  const [markedDates, setMarkedDates] = useState<{[date: string]: {marked: boolean}}>({});
+  const [markedDates, setMarkedDates] = useState<{ [date: string]: { marked: boolean } }>({});
+  const navigation = useNavigation() as NavigationProp<any>;
+  
   
   return (
     <View style={{ flex: 1 }}>
@@ -40,7 +42,7 @@ export default function Calendar() {
         onDayPress={(day) => {
           console.log('Ви вибрали дату:', day.dateString);
           // Тут можеш додати навігацію на нову сторінку з відкриттям інформації про обрану дату
-          router.push(`./outfits/${day.dateString}`);
+          navigation.navigate('DayOutfit', { day: day.dateString });
         }}
 
         theme={{
