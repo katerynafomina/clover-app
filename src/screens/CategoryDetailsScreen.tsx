@@ -44,21 +44,19 @@ const CategoryDetailsScreen = ({ route }: { route: CategoryDetailsRouteProp }) =
                 if (error) {
                     console.error('Error fetching wardrobe items:', error.message);
                 } else {
-                    setWardrobeItems(wardrobe || []);
-                     wardrobeItems.forEach(async (item) => {
-                        const { data, error } = await supabase.storage
-                            .from('clothes')
-                            .download(item.photo_url);
-                        if (error) {
-                            console.error('Error downloading file:', error.message);
-                        } else {
-                            console.log('File downloaded successfully:', data);
-                             const fr = new FileReader()
-                            fr.readAsDataURL(data)
-                            console.log('File FR downloaded successfully:', fr.result as string);
-                            item.photo_url = fr.result as string;
-                        }
-                    });
+                   // Update wardrobe items with public URLs for images
+                    const itemsWithUrls = await Promise.all(
+                        wardrobe.map(async (item) => {
+                            const { data} = await supabase.storage
+                                .from('clothes')
+                                .getPublicUrl(item.photo_url);
+
+
+                            return { ...item, image: data?.publicUrl };
+                        })
+                    );
+
+                    setWardrobeItems(itemsWithUrls);
                     setLoading(false);
                 }
             } catch (error) {
@@ -90,7 +88,7 @@ const CategoryDetailsScreen = ({ route }: { route: CategoryDetailsRouteProp }) =
                         
                         wardrobeItems.map((item) => (
                         <View style={styles.item} key={item.id}>
-                            <Image source={{ data: item.photo_url }} style={styles.image} />
+                            <Image source={{ uri: item.image }} style={styles.image} />
                             <Text>{item.category}</Text>
                         </View>
                 )))}

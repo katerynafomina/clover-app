@@ -1,19 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, Image, ScrollView } from 'react-native';
 import GetDate from '../components/date';
 import WeatherInfo from '../components/weather';
 import LocationToCity from '../components/location';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Alert } from 'react-native';
+import { Category } from '../constants/Categoris';
 
 export default function Home() {
 
     const [latitude, setLatitude] = useState(0.0);
     const [longitude, setLongitude] = useState(0.0);
     const [city, setCity] = useState('');
-    const [wardrobeItems, setWardrobeItems] = useState<{ photo_url: string; category: string }[]>([]); // Оновлено тип данних
+    const [wardrobeItems, setWardrobeItems] = useState<any[]>([]); // Оновлено тип данних
     const [session, setSession] = useState<Session | null>(null)
 
   useEffect(() => {
@@ -33,6 +34,40 @@ export default function Home() {
   useEffect(() => {
     if (session) getProfile()
   }, [session])
+   useEffect(() => {
+        const fetchItems = async () => {
+            try {
+                const { data: wardrobe, error } = await supabase
+                    .from('wardrobe')
+                    .select('id, photo_url, category, user_id')
+                    .eq('user_id', session?.user.id);
+
+                if (error) {
+                    console.error('Error fetching wardrobe items:', error.message);
+                } else {
+                   // Update wardrobe items with public URLs for images
+                    const itemsWithUrls = await Promise.all(
+                        wardrobe.map(async (item) => {
+                            const { data} = await supabase.storage
+                                .from('clothes')
+                                .getPublicUrl(item.photo_url);
+
+
+                            return { ...item, image: data?.publicUrl };
+                        })
+                    );
+
+                    setWardrobeItems(itemsWithUrls);
+                    setLoading(false);
+                }
+            } catch (error) {
+                console.error('Error fetching wardrobe items:', error);
+            }
+        };
+
+        fetchItems();
+        setLoading(false);
+    }, [session]);
    
     
   async function getProfile() {
@@ -69,6 +104,7 @@ export default function Home() {
   };
 
   return (
+    <ScrollView>
     <View style={styles.container}>
       <Text style={styles.title}><GetDate /></Text>
 
@@ -85,13 +121,16 @@ export default function Home() {
 
       {/* Виведення елементів гардеробу */}
       <Text style={styles.sectionTitle}>Елементи гардеробу:</Text>
-      {wardrobeItems.map((item, index) => (
-        <View key={index} style={styles.item}>
-          <Text style={styles.category}>{item.category}</Text>
-          <Text style={styles.photoUrl}>{item.photo_url}</Text>
+      {wardrobeItems.map((item) => (
+                        <View style={styles.item} key={item.id}>
+                            <Image source={{ uri: item.image }} style={styles.image} />
+                            <Text>{item.category}</Text>
         </View>
-      ))}
-    </View>
+
+      ))
+      }
+      </View>
+      </ScrollView>
   );
 }
 
@@ -121,4 +160,9 @@ const styles = StyleSheet.create({
   photoUrl: {
     fontSize: 14,
   },
+    image: {
+        width: '100%',
+        height: 150,
+        borderRadius: 10,
+    },
 });
