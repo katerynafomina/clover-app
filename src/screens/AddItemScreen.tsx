@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView } from 'react-native';
-import { categories } from '../constants/Categoris';
+import { Category, categories } from '../constants/Categoris';
 import Button from '../components/Button';
 import * as ImagePicker from 'expo-image-picker';
-import { Picker } from '@react-native-picker/picker';
-import { Session } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
-import { Alert } from 'react-native'
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+import removeBackground from '../components/removeBack';
+import { Alert } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 
 const AddItemScreen = () => {
-    const [imageUrl, setImageUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [imageShown, setImageShown] = useState<string>('');
     const [showPicker, setShowPicker] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<number>();
-  const [session, setSession] = useState<Session | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const navigation = useNavigation() as NavigationProp<any>;
+    const [session, setSession] = useState<Session | null>(null);
+    const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
+   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
@@ -27,116 +27,147 @@ const AddItemScreen = () => {
     })
   }, [])
 
-
-    async function uploadAvatar() {
-    try {
-      setUploading(true)
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Restrict to only images
-        allowsMultipleSelection: false, // Can only select one image
-        allowsEditing: true, // Allows the user to crop / rotate their photo before uploading it
-        quality: 1,
-        exif: false, // We don't want nor need that data.
-      })
-
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        console.log('User cancelled image picker.')
-        return
-      }
-
-      const image = result.assets[0]
-      console.log('Got image', image)
-
-      if (!image.uri) {
-        throw new Error('No image uri!') // Realistically, this should never happen, but just in case...
-      }
-
-      const arraybuffer = await fetch(image.uri).then((res) => res.arrayBuffer())
-
-      const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg'
-      const path = `${Date.now()}.${fileExt}`
-      const { data, error: uploadError } = await supabase.storage
-        .from('clothes')
-        .upload(path, arraybuffer, {
-          contentType: image.mimeType ?? 'image/jpeg',
-        })
-
-      if (uploadError) {
-        throw uploadError
-      }
-      setImageUrl(data.path)
-      // onUpload(data.path)
-    } catch (error) {
-      if (error instanceof Error) {
-        Alert.alert(error.message)
-      } else {
-        throw error
-      }
-    } finally {
-      setUploading(false)
-    }
-  }
-    
-
-    const defaultImage = require('../assets/add-image.png');
-
     const pickImage = async () => {
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.All,
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 1,
+            });
+
+            if (!result.canceled ) {
+                setImageUrl(result.assets[0].uri);
+            }
+        } catch (error) {
+            console.error('Image picker error:', error);
+        }
+    };
+
+   const uploadAndProcessImage = async () => {
+    try {
+        setUploading(true);
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            aspect: [9, 16],
+            aspect: [4, 3],
             quality: 1,
         });
 
-        if (!result.canceled) {
-            setImageUrl(result.assets[0].uri);
+        if (result.canceled) {
+            console.log('User cancelled image picker.');
+            return;
         }
-    };
+
+        const { uri } = result.assets[0];
+
+        const response = await fetch(uri);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image first: ${response.status} - ${response.statusText}`);
+        }
+        console.log('response: ',response)
+        const blob = await response.blob();
+
+        const fileExt = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
+        const path = `${Date.now()}.${fileExt}`;
+        console.log('path: ',path)
+        // Upload original image to storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('clothes_temp')
+            .upload(path, blob, {
+                contentType: 'image/png',
+            });
+
+        if (uploadError) {
+            throw uploadError;
+        }
+
+        // Process image to remove background
+        const processedImagePath = await removeBackground(uploadData?.path ?? '');
+        if (!processedImagePath) {
+            throw new Error('Failed to process image background.');
+        }
+        console.log('processedImagePath: ',processedImagePath)
+        // Upload processed image to storage
+        const processedImageBlob = await FileSystem.readAsStringAsync(processedImagePath, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+
+        const processedImageExt = processedImagePath.split('.').pop()?.toLowerCase() ?? 'jpg';
+        const processedImagePathInStorage = `processed_${Date.now()}.${processedImageExt}`;
+        console.log('processedImagePathInStorage: ',processedImagePathInStorage)
+        const { data: processedUploadData, error: processedUploadError } = await supabase.storage
+            .from('clothes_temp')
+            .upload(processedImagePathInStorage, processedImageBlob, {
+                contentType: 'image/jpeg',
+            });
+
+        if (processedUploadError) {
+            throw processedUploadError;
+        }
+
+        const processedImageUrl = processedUploadData?.path ?? '';
+
+        // Set the processed image URL
+        setImageUrl(processedImageUrl);
+        Alert.alert('Image uploaded and processed successfully!');
+
+    } catch (error) {
+        console.error('Upload and process image error:', error);
+        Alert.alert('Failed to upload and process image. Please try again.');
+    } finally {
+        setUploading(false);
+    }
+};
+
+
 
     const handleCategoryChange = (itemValue: number) => {
         setSelectedCategory(itemValue);
         setShowPicker(false); // Close the picker after selection
     };
 
-      const addItemToWardrobe = async() => {
-        if (selectedCategory === undefined) {
-          return; // Return early if selectedCategory is undefined
+    const addItemToWardrobe = async () => {
+        if (selectedCategory === undefined || !imageUrl) {
+            Alert.alert('Please select a category and upload an image.');
+            return;
         }
-         
-        const { data, error } = await supabase
-          .from('wardrobe')
-          .insert([
-            {
-              user_id: `${session?.user.id}`,
-              category: `${categories.find(category => category.id === selectedCategory)?.name}`,
-              photo_url: `${imageUrl}`,
-            },
-          ])
-          .select()
-        if (error) {
-          Alert.alert(error.message)
-        } else {
-          Alert.alert('Успішно додано!')
-          navigation.goBack()
+
+        try {
+            const { data, error } = await supabase
+                .from('wardrobe')
+                .insert({
+                    user_id: session?.user?.id,
+                    category: categories.find((category) => category.id === selectedCategory)?.name,
+                    photo_url: imageUrl,
+                });
+
+            if (error) {
+                throw error;
+            }
+
+            Alert.alert('Item added to wardrobe successfully!');
+        } catch (error) {
+            console.error('Add item error:', error);
+            Alert.alert('Failed to add item. Please try again.');
         }
     };
-  
 
     return (
         <View style={styles.container}>
             <View style={styles.selectImage}>
                 <Pressable onPress={pickImage}>
-                    <Image source={imageUrl ? { uri: imageUrl } : defaultImage} style={styles.image} />
+                    <Image source={imageUrl ? { uri: imageUrl } : require('../assets/add-image.png')} style={styles.image} />
                 </Pressable>
-                <Pressable onPress={uploadAvatar}>
+                <Pressable onPress={uploadAndProcessImage}>
                     <Text style={styles.imageText}>Обрати фото</Text>
                 </Pressable>
             </View>
 
             <Pressable onPress={() => setShowPicker(!showPicker)}>
                 <Text style={styles.selectText}>
-                    {selectedCategory ? categories.find(category => category.id === selectedCategory)?.name : 'Обрати категорію'}
+                    {selectedCategory ? categories.find((category) => category.id === selectedCategory)?.name : 'Обрати категорію'}
                 </Text>
             </Pressable>
 
@@ -215,4 +246,4 @@ const styles = StyleSheet.create({
     },
 });
 
-  export default AddItemScreen;
+export default AddItemScreen;
