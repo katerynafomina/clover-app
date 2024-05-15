@@ -52,7 +52,7 @@ export default function Register() {
     <View style={styles.container}>
       <View style={[styles.verticallySpaced, styles.mt20]}>
         <Input
-          label="Email"
+          label="Електронна пошта"
           leftIcon={{ type: 'font-awesome', name: 'envelope' }}
           onChangeText={(text) => setEmail(text)}
           value={email}
@@ -62,14 +62,14 @@ export default function Register() {
       </View>
       <View style={styles.verticallySpaced}>
         <Input
-          label="Password"
+          label="Пароль"
           leftIcon={{ type: 'font-awesome', name: 'lock' }}
           onChangeText={(text) => setPassword(text)}
           value={password}
           secureTextEntry={true}
-          placeholder="Password"
+          placeholder="пароль"
           autoCapitalize={'none'}
-        />
+        /> 
       </View>
       
       <View style={styles.verticallySpaced}>

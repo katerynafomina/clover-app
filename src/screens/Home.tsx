@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Image, ScrollView, Pressable } from 'react-native';
+import { StyleSheet, View, Text, Image, ScrollView, Pressable, FlatList } from 'react-native';
 import GetDate from '../components/date';
 import WeatherInfo from '../components/weather';
 import LocationToCity from '../components/location';
@@ -60,39 +60,11 @@ export default function Home() {
             fetchItems();
         }
     }, [session]);
-//   const addWeather = async () => {
-//     try {
-//       const { data, error } = await supabase
-//         .from('weather')
-//         .insert([
-//           {  city: city, max_temperature: temperature, weather: weather }
-//         ])
-//       if (error) {
-//         Alert.alert('Error adding weather:', error.message)
-//       } else {
-//         Alert.alert('Weather added successfully!')
-//       }
-//     } catch (error) {
-//       Alert.alert('Error adding weather:', error.message)
-//     }
-//   }
-  
-//   const AddOutfit = async() => {
-//     try {
-//       const { data, error } = await supabase
-//         .from('weather')
-//         .insert([
-//           { user_id: session?.user.id, items: selectedItems }
-//         ])
-//       if (error) {
-//         Alert.alert('Error adding outfit:', error.message)
-//       } else {
-//         Alert.alert('Outfit added successfully!')
-//       }
-//     } catch (error) {
-//       Alert.alert('Error adding outfit:', error.message)
-//     }
-//   }
+
+    // Функція для фільтрації унікальних категорій
+    const getUniqueCategories = () => {
+        return Array.from(new Set(wardrobeItems.map(item => item.category)));
+    };
 
     const toggleItemSelection = (item: any) => {
         // Перевіряємо, чи вже вибраний елемент
@@ -108,40 +80,52 @@ export default function Home() {
     };
 
     return (
-        <ScrollView>
-            <View style={styles.container}>
-                <Text style={styles.title}><GetDate /></Text>
-                <LocationToCity onLocationChange={(city, latitude, longitude) => {
-                    setLatitude(latitude);
-                    setLongitude(longitude);
-                    setCity(city);
-                }} />
-
+        <View style={styles.container}>
+            <ScrollView 
+                style={{ width: '100%' }}
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}>
+                <View style={{alignItems: 'center'}}>
+                    <Text style={styles.title}><GetDate /></Text>
+                    <LocationToCity onLocationChange={(city, latitude, longitude) => {
+                        setLatitude(latitude);
+                        setLongitude(longitude);
+                        setCity(city);
+                    }} />
+                </View>
+                <View style={{alignItems: 'center'}}>
                 {city && <WeatherInfo latitude={latitude} longitude={longitude} />}
-
-                <Text>основний аутфіт</Text>
-                <Text>верхній одяг та аксесуари</Text>
-
-                <Text>Ідентифікатор користувача: {session?.user.email}</Text>
-
+                </View>
                 {/* Виведення елементів гардеробу */}
-                <Text style={styles.sectionTitle}>Елементи гардеробу:</Text>
-                {wardrobeItems.map((item) => (
-                    <Pressable
-                        key={item.id}
-                        style={[
-                            styles.item,
-                            selectedItems.some((selected) => selected.id === item.id) && styles.selectedItem,
-                        ]}
-                        onPress={() => toggleItemSelection(item)}
-                    >
-                        <Image source={{ uri: item.image }} style={styles.image} />
-                        <Text>{item.category}</Text>
-                    </Pressable>
+                
+                <Text style={styles.sectionTitle}>Складіть образ на сьогодні</Text>
+                {getUniqueCategories().map((category, index) => (
+                    <View key={index}>
+                        <Text style={styles.categoryTitle}>{category}</Text>
+                        <FlatList
+                            data={wardrobeItems.filter(item => item.category === category)}
+                            keyExtractor={(item) => item.id.toString()}
+                            horizontal
+                            contentContainerStyle={{ paddingBottom: 5}}
+                            renderItem={({ item }) => (
+                                <Pressable
+                                    style={[
+                                        styles.item,
+                                        selectedItems.some((selected) => selected.id === item.id) && styles.selectedItem,
+                                    ]}
+                                    onPress={() => toggleItemSelection(item)}
+                                >
+                                    <Image source={{ uri: item.image }} style={styles.image} />
+                                    {/* <Text>{item.category}</Text> */}
+                                </Pressable>
+                            )}
+                        />
+                    </View>
                 ))}
+                <View style={{marginBottom: 20}}></View>
                 <Button text="додати образ" />
-            </View>
-        </ScrollView>
+            </ScrollView>
+        </View>
     );
 }
 
@@ -149,7 +133,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         alignItems: 'center',
-        padding: 20,
+        paddingVertical: 20,
         backgroundColor: '#fff',
     },
     title: {
@@ -157,9 +141,16 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     sectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    categoryTitle: {
         fontSize: 16,
         fontWeight: 'bold',
-        marginTop: 20,
+        marginTop: 10,
+        textAlign: 'center',
     },
     item: {
         marginBottom: 10,
@@ -172,8 +163,8 @@ const styles = StyleSheet.create({
         borderColor: 'blue',
     },
     image: {
-        width: 300,
-        height: 300,
+        height: 100,
+        width: 100,
         borderRadius: 10,
         resizeMode: 'contain',
     },

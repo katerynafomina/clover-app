@@ -26,22 +26,25 @@ const ClosetStack = () => {
         name="ClosetCategories"
         component={ClosetCategories}
         options={{
-          headerShown: false,
+          headerTitle: 'Категорії',
+          headerShown: true,
         }}
       />
       <Stack.Screen
         name="AddItemScreen"
         component={AddItemScreen}
         options={{
-          headerShown: false,
+          headerTitle: 'Додавання одягу',
+          headerShown: true,
         }}
       />
       <Stack.Screen
         name="CategoryDetailsScreen"
         component={CategoryDetailsScreen}
-        options={{
-          headerShown: false,
-        }}
+        options={({ route }) => ({
+          headerTitle: route.params.category,
+          headerShown: true,
+        })}
       />
     </Stack.Navigator>
   );
@@ -55,14 +58,16 @@ const CalendarStack = () => {
         name="Calendar"
         component={Calendar}
         options={{
-          headerShown: false,
+          headerTitle: 'Календар',
+          headerShown: true,
         }}
       />
       <Stack.Screen 
         name='DayOutfit'
         component={DayOutfit}
         options={{
-          headerShown: false,
+          headerTitle: 'Обрана дата',
+          headerShown: true,
         }}
       />
     </Stack.Navigator>
@@ -76,7 +81,19 @@ const HomeTabs = () => {
       <Tab.Screen name="Home"
         component={Home}
         options={{
-          headerShown: false,
+          headerTitle: 'Головна',
+          headerRight: () => (
+            <Pressable onPress={() => supabase.auth.signOut()}>
+              {({ pressed }) => (
+                <AntDesign
+                  name="user"
+                  size={25}
+                  color="black"
+                  style={{ marginRight: 15, paddingEnd: 10, opacity: pressed ? 0.5 : 1 }}
+                />
+              )}
+            </Pressable>
+          ),
           tabBarIcon: ({ color }) => (
             <AntDesign name="home" size={25} color={color} />
           ),
@@ -126,28 +143,18 @@ const [session, setSession] = useState<Session | null>(null);
       <Stack.Navigator>
         {!session ? (
           <>
-            <Stack.Screen name="Auth" component={Auth} />
-            <Stack.Screen name="Register" component={Register} />
+            <Stack.Screen name="Auth" component={Auth} options={{headerTitle: 'Вхід',}} />
+            <Stack.Screen name="Register" component={Register} options={{headerTitle: 'Реєстрація',}}/>
           </>
         ) : (
           <Stack.Screen
             name="HomeStack"
             component={HomeTabs}
-              options={{
-              
-              headerRight: () => (
-                <Pressable onPress={() => supabase.auth.signOut()}>
-                  {({ pressed }) => (
-                    <AntDesign
-                      name="user"
-                      size={25}
-                      color="black"
-                      style={{ marginRight: 15, paddingEnd: 10, opacity: pressed ? 0.5 : 1 }}
-                    />
-                  )}
-                </Pressable>
-              ),
-            }}
+            options={
+              {
+                headerShown: false,
+              }
+            }
           />
         )}
       </Stack.Navigator>
