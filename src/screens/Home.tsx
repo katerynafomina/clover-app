@@ -1,124 +1,180 @@
-
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, Image, ScrollView, Pressable } from 'react-native';
 import GetDate from '../components/date';
 import WeatherInfo from '../components/weather';
 import LocationToCity from '../components/location';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Alert } from 'react-native';
+import { Category } from '../constants/Categoris';
+import  Button  from '../components/Button';
 
 export default function Home() {
-
     const [latitude, setLatitude] = useState(0.0);
     const [longitude, setLongitude] = useState(0.0);
     const [city, setCity] = useState('');
-    const [wardrobeItems, setWardrobeItems] = useState<{ photo_url: string; category: string }[]>([]); // Оновлено тип данних
-    const [session, setSession] = useState<Session | null>(null)
+    const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
+    const [session, setSession] = useState<Session | null>(null);
+    const [selectedItems, setSelectedItems] = useState<any[]>([]); // Масив обраних елементів
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-    })
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+        });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-  }, [])
+        supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
+    }, []);
 
-  const [loading, setLoading] = useState(true)
-  const [username, setUsername] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState('')
+    useEffect(() => {
+        const fetchItems = async () => {
+            try {
+                const { data: wardrobe, error } = await supabase
+                    .from('wardrobe')
+                    .select('id, photo_url, category, user_id')
+                    .eq('user_id', session?.user.id);
 
-  useEffect(() => {
-    if (session) getProfile()
-  }, [session])
-   
-    
-  async function getProfile() {
-    try {
-      setLoading(true)
-      if (!session?.user) throw new Error('No user on the session!')
+                if (error) {
+                    console.error('Error fetching wardrobe items:', error.message);
+                } else {
+                    // Отримання публічних URL для зображень
+                    const itemsWithUrls = await Promise.all(
+                        wardrobe.map(async (item) => {
+                            const { data } = await supabase.storage
+                                .from('clothes')
+                                .getPublicUrl(item.photo_url);
 
-      const { data, error, status } = await supabase
-        .from('profiles')
-        .select(`username, website, avatar_url`)
-        .eq('id', session?.user.id)
-        .single()
-      if (error && status !== 406) {
-        throw error
-      }
+                            return { ...item, image: data?.publicUrl };
+                        })
+                    );
 
-      if (data) {
-        setUsername(data.username)
-        setAvatarUrl(data.avatar_url)
-      }
-    } catch (error) {
-      if (error instanceof Error) {
-        Alert.alert(error.message)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
- 
-  const handleLocationChange = (city: string, latitude: number, longitude: number) => {
-    setLatitude(latitude);
-    setLongitude(longitude);
-    setCity(city);
-  };
+                    setWardrobeItems(itemsWithUrls);
+                }
+            } catch (error) {
+                console.error('Error fetching wardrobe items:', error);
+            }
+        };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}><GetDate /></Text>
+        if (session) {
+            fetchItems();
+        }
+    }, [session]);
+//   const addWeather = async () => {
+//     try {
+//       const { data, error } = await supabase
+//         .from('weather')
+//         .insert([
+//           {  city: city, max_temperature: temperature, weather: weather }
+//         ])
+//       if (error) {
+//         Alert.alert('Error adding weather:', error.message)
+//       } else {
+//         Alert.alert('Weather added successfully!')
+//       }
+//     } catch (error) {
+//       Alert.alert('Error adding weather:', error.message)
+//     }
+//   }
+  
+//   const AddOutfit = async() => {
+//     try {
+//       const { data, error } = await supabase
+//         .from('weather')
+//         .insert([
+//           { user_id: session?.user.id, items: selectedItems }
+//         ])
+//       if (error) {
+//         Alert.alert('Error adding outfit:', error.message)
+//       } else {
+//         Alert.alert('Outfit added successfully!')
+//       }
+//     } catch (error) {
+//       Alert.alert('Error adding outfit:', error.message)
+//     }
+//   }
 
-      <LocationToCity onLocationChange={handleLocationChange} />
+    const toggleItemSelection = (item: any) => {
+        // Перевіряємо, чи вже вибраний елемент
+        const isSelected = selectedItems.some((selected) => selected.id === item.id);
 
-      {city && (
-        <WeatherInfo latitude={latitude} longitude={longitude} />
-      )}
+        if (isSelected) {
+            // Видалення елементу із списку обраних, якщо він вже був вибраний
+            setSelectedItems((prevItems) => prevItems.filter((selected) => selected.id !== item.id));
+        } else {
+            // Додавання елементу до списку обраних, якщо він ще не був вибраний
+            setSelectedItems((prevItems) => [...prevItems, item]);
+        }
+    };
 
-      <Text>основний аутфіт</Text>
-      <Text>верхній одяг та аксесуари</Text>
-      
-      <Text>Ідентифікатор користувача: { session?.user.email }</Text>
+    return (
+        <ScrollView>
+            <View style={styles.container}>
+                <Text style={styles.title}><GetDate /></Text>
+                <LocationToCity onLocationChange={(city, latitude, longitude) => {
+                    setLatitude(latitude);
+                    setLongitude(longitude);
+                    setCity(city);
+                }} />
 
-      {/* Виведення елементів гардеробу */}
-      <Text style={styles.sectionTitle}>Елементи гардеробу:</Text>
-      {wardrobeItems.map((item, index) => (
-        <View key={index} style={styles.item}>
-          <Text style={styles.category}>{item.category}</Text>
-          <Text style={styles.photoUrl}>{item.photo_url}</Text>
-        </View>
-      ))}
-    </View>
-  );
+                {city && <WeatherInfo latitude={latitude} longitude={longitude} />}
+
+                <Text>основний аутфіт</Text>
+                <Text>верхній одяг та аксесуари</Text>
+
+                <Text>Ідентифікатор користувача: {session?.user.email}</Text>
+
+                {/* Виведення елементів гардеробу */}
+                <Text style={styles.sectionTitle}>Елементи гардеробу:</Text>
+                {wardrobeItems.map((item) => (
+                    <Pressable
+                        key={item.id}
+                        style={[
+                            styles.item,
+                            selectedItems.some((selected) => selected.id === item.id) && styles.selectedItem,
+                        ]}
+                        onPress={() => toggleItemSelection(item)}
+                    >
+                        <Image source={{ uri: item.image }} style={styles.image} />
+                        <Text>{item.category}</Text>
+                    </Pressable>
+                ))}
+                <Button text="додати образ" />
+            </View>
+        </ScrollView>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 20,
-  },
-  item: {
-    marginBottom: 10,
-  },
-  category: {
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  photoUrl: {
-    fontSize: 14,
-  },
+    container: {
+        flex: 1,
+        alignItems: 'center',
+        padding: 20,
+        backgroundColor: '#fff',
+    },
+    title: {
+        fontSize: 20,
+        fontWeight: 'bold',
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginTop: 20,
+    },
+    item: {
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: 'transparent',
+        borderRadius: 8,
+        padding: 8,
+    },
+    selectedItem: {
+        borderColor: 'blue',
+    },
+    image: {
+        width: 300,
+        height: 300,
+        borderRadius: 10,
+        resizeMode: 'contain',
+    },
 });

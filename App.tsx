@@ -11,9 +11,64 @@ import Home from './src/screens/Home';
 import ClosetCategories from './src/screens/ClosetCategories';
 import Account from './src/screens/Account';
 import { Session } from '@supabase/supabase-js';
+import Calendar from './src/screens/Calendar';
+import AddItemScreen from './src/screens/AddItemScreen';
+import CategoryDetailsScreen from './src/screens/CategoryDetailsScreen';
+import DayOutfit from './src/screens/DayOutfit';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+
+const ClosetStack = () => {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="ClosetCategories"
+        component={ClosetCategories}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="AddItemScreen"
+        component={AddItemScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="CategoryDetailsScreen"
+        component={CategoryDetailsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+    </Stack.Navigator>
+  );
+
+}
+
+const CalendarStack = () => {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="Calendar"
+        component={Calendar}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name='DayOutfit'
+        component={DayOutfit}
+        options={{
+          headerShown: false,
+        }}
+      />
+    </Stack.Navigator>
+  );
+
+}
 
 const HomeTabs = () => {
   return (
@@ -27,12 +82,21 @@ const HomeTabs = () => {
           ),
         }}
       />
-      <Tab.Screen name="ClosetCategories"
-        component={ClosetCategories}
+      <Tab.Screen name="Closet"
+        component={ClosetStack}
         options={{
           headerShown: false,
           tabBarIcon: ({ color }) => (
             <AntDesign name="appstore1" size={25} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen name="Outfits"
+        component={CalendarStack}
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <AntDesign name="calendar" size={25} color={color} />
           ),
         }}
       />

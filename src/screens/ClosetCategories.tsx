@@ -1,20 +1,21 @@
 import React from 'react';
 import { View, Text, FlatList, Image, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { categories, Category } from '../constants/Categoris';
-import { Link } from 'expo-router';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const numColumns = 2;
 
 const ClosetCategories = () => {
+    const navigation = useNavigation() as NavigationProp<any>;
     // Функція, яка відповідає за відображення кожного елементу у FlatList
     const renderItem = ({ item }: { item: Category }) => (
-        <Link href={`/closet/${item.name}`} asChild>
-            <Pressable style={styles.item}>
+        
+            <Pressable style={styles.item} onPress={() => {navigation.navigate("CategoryDetailsScreen", {category:item.name.toString()})}}>
                 <Image source={item.image} style={styles.image} />
                 {/* <Text style={styles.title}>{item.name}</Text> */}
             </Pressable>
-        </Link>
+       
     );
 
     return (
@@ -26,11 +27,11 @@ const ClosetCategories = () => {
                 numColumns={numColumns}
             />
             {/* Кнопка "+", яка відображається поверх списку */}
-            <Link href="/closet/add" asChild>
-                <Pressable style={styles.addButton}>
+            
+                <Pressable style={styles.addButton} onPress={()=>{navigation.navigate("AddItemScreen")}}>
                     <Text style={styles.addButtonText}>+</Text>
                 </Pressable>
-            </Link>
+            
         </View>
     );
 };
