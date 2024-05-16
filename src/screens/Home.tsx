@@ -79,6 +79,71 @@ export default function Home() {
         }
     };
 
+   const insertWeather = async () => {
+    try {
+        const { data: weather, error: WeatherError } = await supabase
+            .from('weather')
+            .insert([
+                {
+                    min_tempurature: 15,
+                    max_tempurature: 15,
+                    humidity: 10,
+                    precipitation: 10,
+                    wind: 0,
+                    weather_type: 'rain',
+                    city: city, // Використовуємо змінну city для міста
+                },
+            ]).select()
+            
+            console.log(weather[0].id);
+        if (WeatherError) {
+            throw WeatherError;
+        }
+
+        if (weather ) {
+            const weatherId = weather[0].id;
+
+            // Додаємо новий образ у таблицю outfits з посиланням на погоду
+            const { data: outfit, error: OutfitError } = await supabase
+                .from('outfits')
+                .insert([
+                    {
+                        user_id: session?.user.id,
+                        weather_id: weatherId,
+                    },
+                ]).select('id');
+
+            if (OutfitError) {
+                throw OutfitError;
+            }
+
+            if (outfit && outfit.length > 0) {
+                const outfitId = outfit[0].id;
+
+                // Додаємо обрані елементи у таблицю outfit_item з посиланням на образ
+                const itemsToInsert = selectedItems.map((item) => ({
+                    outfit_id: outfitId,
+                    item_id: item.id,
+                }));
+
+                const { data: insertedItems, error: InsertError } = await supabase
+                    .from('outfit_item')
+                    .insert(itemsToInsert);
+
+                if (InsertError) {
+                    throw InsertError;
+                }
+
+                Alert.alert('Образ успішно додано!');
+            }
+        }
+    } catch (error) {
+        console.error('Error inserting weather and outfit:', error);
+        Alert.alert('Помилка під час додавання образу. Будь ласка, спробуйте ще раз.');
+    }
+};
+
+
     return (
         <View style={styles.container}>
             <ScrollView 
@@ -123,7 +188,7 @@ export default function Home() {
                     </View>
                 ))}
                 <View style={{marginBottom: 20}}></View>
-                <Button text="додати образ" />
+                <Button text="додати образ" onPress={ insertWeather} />
             </ScrollView>
         </View>
     );
