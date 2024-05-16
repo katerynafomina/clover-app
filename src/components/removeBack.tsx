@@ -31,7 +31,7 @@ async function removeBackground(imageUrl: string) {
     const objectImage = "object_" + imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
     console.log(objectImage);
     const objectImagePath = FileSystem.documentDirectory + objectImage;
-    console.log(objectImagePath);
+    // console.log(objectImagePath);
 
     function blobToBase64(blob: Blob): Promise<string> {
         return new Promise((resolve, reject) => {

@@ -15,7 +15,8 @@ const AddItemScreen = () => {
     const [showPicker, setShowPicker] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<number>();
     const [session, setSession] = useState<Session | null>(null);
-    const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [fileExt, setFileExt] = useState('');
 
    useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -42,86 +43,99 @@ const AddItemScreen = () => {
         } catch (error) {
             console.error('Image picker error:', error);
         }
-    };
-
-   const uploadAndProcessImage = async () => {
+  };
+  
+  const prossesImage = async (path:string) => {
     try {
-        setUploading(true);
-
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 1,
-        });
-
-        if (result.canceled) {
-            console.log('User cancelled image picker.');
-            return;
-        }
-
-        const { uri } = result.assets[0];
-
-        const response = await fetch(uri);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch image first: ${response.status} - ${response.statusText}`);
-        }
-        console.log('response: ',response)
-        const blob = await response.blob();
-
-        const fileExt = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
-        const path = `${Date.now()}.${fileExt}`;
-        console.log('path: ',path)
-        // Upload original image to storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('clothes_temp')
-            .upload(path, blob, {
-                contentType: 'image/png',
-            });
-
-        if (uploadError) {
-            throw uploadError;
-        }
-
+      console.log('Processing image:', imageUrl);
+        const { data: image} = await supabase.storage
+        .from('clothes')
+        .getPublicUrl(path);
         // Process image to remove background
-        const processedImagePath = await removeBackground(uploadData?.path ?? '');
+        const processedImagePath = await removeBackground(image.publicUrl);
         if (!processedImagePath) {
-            throw new Error('Failed to process image background.');
+          throw new Error('Failed to process image background.');
         }
-        console.log('processedImagePath: ',processedImagePath)
-        // Upload processed image to storage
-        const processedImageBlob = await FileSystem.readAsStringAsync(processedImagePath, {
-            encoding: FileSystem.EncodingType.Base64,
+        console.log('Processed image path:', processedImagePath);
+        // Read processed image as Base64
+        const base64Image = await FileSystem.readAsStringAsync(processedImagePath, {
+          encoding: FileSystem.EncodingType.Base64,
         });
-
-        const processedImageExt = processedImagePath.split('.').pop()?.toLowerCase() ?? 'jpg';
-        const processedImagePathInStorage = `processed_${Date.now()}.${processedImageExt}`;
-        console.log('processedImagePathInStorage: ',processedImagePathInStorage)
+        console.log('Base64 image:', base64Image);
+        // Upload processed image (Base64) to storage
         const { data: processedUploadData, error: processedUploadError } = await supabase.storage
-            .from('clothes_temp')
-            .upload(processedImagePathInStorage, processedImageBlob, {
-                contentType: 'image/jpeg',
-            });
+          .from('clothes')
+          .upload(`${Date.now()}_processed.${'png'}`, base64Image, {
+            contentType: 'image/png',
+          });
 
         if (processedUploadError) {
-            throw processedUploadError;
+          throw processedUploadError;
         }
 
         const processedImageUrl = processedUploadData?.path ?? '';
 
         // Set the processed image URL
         setImageUrl(processedImageUrl);
-        Alert.alert('Image uploaded and processed successfully!');
+      Alert.alert('Image uploaded and processed successfully!');
+      console.log()
+      setImageShown(processedImageUrl);
 
-    } catch (error) {
+      } catch (error) {
         console.error('Upload and process image error:', error);
         Alert.alert('Failed to upload and process image. Please try again.');
-    } finally {
+      } finally {
         setUploading(false);
+      }
     }
-};
 
+  const uploadAndProcessImage = async () => {
+    try {
+      setUploading(true);
 
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+      });
+
+      if (result.canceled) {
+        console.log('User cancelled image picker.');
+        return;
+      }
+
+      const { uri } = result.assets[0];
+      const image = result.assets[0];
+      console.log('Image URI:', uri);
+      const response = await fetch(uri);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status} - ${response.statusText}`);
+      }
+      const arraybuffer = await fetch(image.uri).then((res) => res.arrayBuffer())
+
+      const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg'
+      const path = `${Date.now()}.${fileExt}`
+      const { data, error: uploadError } = await supabase.storage
+        .from('clothes')
+        .upload(path, arraybuffer, {
+          contentType: image.mimeType ?? 'image/jpeg',
+        })
+      console.log('Image uploaded:', data?.path);
+      
+      if (uploadError) {
+        throw uploadError
+      }
+      setImageUrl(data?.path);
+      console.log('Image URL:', imageUrl);
+      prossesImage(data?.path);
+      
+    } catch (error) {
+      console.error('Image upload error:', error);
+      Alert.alert('Failed to upload image. Please try again.');
+    };
+    
+  }
 
     const handleCategoryChange = (itemValue: number) => {
         setSelectedCategory(itemValue);
@@ -158,7 +172,7 @@ const AddItemScreen = () => {
         <View style={styles.container}>
             <View style={styles.selectImage}>
                 <Pressable onPress={pickImage}>
-                    <Image source={imageUrl ? { uri: imageUrl } : require('../assets/add-image.png')} style={styles.image} />
+                    <Image source={imageShown ? { uri: imageShown } : require('../assets/add-image.png')} style={styles.image} />
                 </Pressable>
                 <Pressable onPress={uploadAndProcessImage}>
                     <Text style={styles.imageText}>Обрати фото</Text>
