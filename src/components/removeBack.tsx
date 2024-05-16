@@ -49,7 +49,7 @@ async function removeBackground(imageUrl: string) {
     }
 
     const base64Image = await blobToBase64(blob);
-    console.log(base64Image);
+    // console.log(base64Image);
 
     await FileSystem.writeAsStringAsync(objectImagePath, base64Image, {
         encoding: FileSystem.EncodingType.Base64

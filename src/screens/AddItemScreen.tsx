@@ -61,12 +61,13 @@ const AddItemScreen = () => {
         const base64Image = await FileSystem.readAsStringAsync(processedImagePath, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        console.log('Base64 image:', base64Image);
+      console.log('Base64 image:', base64Image);
+      const arraybuffer = await fetch(processedImagePath).then((res) => res.arrayBuffer())
         // Upload processed image (Base64) to storage
         const { data: processedUploadData, error: processedUploadError } = await supabase.storage
           .from('clothes')
-          .upload(`${Date.now()}_processed.${'png'}`, base64Image, {
-            contentType: 'image/png',
+          .upload(`${Date.now()}_processed.${'jpeg'}`, arraybuffer, {
+            contentType: 'image/jpeg',
           });
 
         if (processedUploadError) {
