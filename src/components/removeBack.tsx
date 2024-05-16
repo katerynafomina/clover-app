@@ -31,7 +31,7 @@ async function removeBackground(imageUrl: string) {
     const objectImage = "object_" + imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
     console.log(objectImage);
     const objectImagePath = FileSystem.documentDirectory + objectImage;
-    console.log(objectImagePath);
+    // console.log(objectImagePath);
 
     function blobToBase64(blob: Blob): Promise<string> {
         return new Promise((resolve, reject) => {
@@ -49,7 +49,7 @@ async function removeBackground(imageUrl: string) {
     }
 
     const base64Image = await blobToBase64(blob);
-    console.log(base64Image);
+    // console.log(base64Image);
 
     await FileSystem.writeAsStringAsync(objectImagePath, base64Image, {
         encoding: FileSystem.EncodingType.Base64
