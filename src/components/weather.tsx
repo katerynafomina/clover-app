@@ -6,7 +6,16 @@ interface WeatherInfoProps {
   longitude: number;
 }
 
-const WeatherInfo: React.FC<WeatherInfoProps> = ({ latitude, longitude }) => {
+export type WeatherInfoData = {
+  temp: number;
+  icon: string;
+  description: string;
+  humidity: number;
+  speed: number;
+  forecast: any[]; // You can replace `any[]` with a more specific type if possible
+}
+
+export default function WeatherInfo({ latitude, longitude } : WeatherInfoProps) {
   const [weatherData1, setWeatherData1] = useState<any>(null);
   const [weatherData2, setWeatherData2] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -49,49 +58,7 @@ const WeatherInfo: React.FC<WeatherInfoProps> = ({ latitude, longitude }) => {
   
   const currentWeather = weatherData1.weather;
   const mainWeather = weatherData1.main;
-  return (<View>
-            <View style={{flexDirection: 'row',  justifyContent: 'space-between', marginBottom: 20, marginTop: 30 }}>
-                <View style={{}}>
-                    <Text style={{ fontSize: 15}}>зараз</Text>
-                    <View style={{flexDirection: 'row', alignItems: 'center', gap: 5}} >
-                      <Text style={{fontSize: 32}}>{mainWeather.temp > 0 ? '+' : ''}{Math.round(mainWeather.temp)}°</Text>
-                     
-                        <Image
-                            source={{uri: `http://openweathermap.org/img/wn/${currentWeather[0].icon}.png`}}
-                            style={{width: 60, height: 50}}
-                        />
-                    </View>
-                    <Text>{currentWeather[0].description}</Text>
-                </View>
-                <View style={{justifyContent: "center"}}>
-                    <Text style={{ fontSize: 15}}>Вологість: {mainWeather.humidity}%</Text>
-                    <Text style={{ fontSize: 15}}>Вітер: {weatherData1.wind.speed} м/с</Text>
-                </View>
-            </View>
-            <FlatList
-        style={{maxHeight: 150, marginBottom: 20}}
-        data={weatherData2.list.slice(0, 5)} 
-        keyExtractor={(item) => item.dt.toString()}
-        renderItem={({ item }) => {
-            const date = new Date(item.dt * 1000);
-            return (
-                <View style={{alignItems: "center"}}>
-                    <Image
-                        source={{uri: `http://openweathermap.org/img/wn/${item.weather[0].icon}.png`}}
-                        style={{width: 60, height: 50}}
-                    />
-                    <Text style={{ fontSize: 20, marginBottom: 12}}>{item.main.temp > 0 ? '+' : ''}{Math.round(item.main.temp)}°</Text>
-                    <Text style={{ fontSize: 15}}>{date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</Text>
-                </View>
-            );
-        }}
-        numColumns={8}
-        contentContainerStyle={{}}
-        columnWrapperStyle={{gap: 10}}
-        scrollEnabled={false}
-    />
-      </View>
-  );
+
+  return {temp: mainWeather.temp, icon: currentWeather[0].icon, description: currentWeather[0].description, humidity: mainWeather.humidity, speed: weatherData1.wind.speed, forecast: weatherData2.list.slice(0, 5)} as WeatherInfoData;
 };
 
-export default WeatherInfo;

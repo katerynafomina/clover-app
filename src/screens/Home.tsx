@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Image, ScrollView, Pressable, FlatList } from 'react-native';
 import GetDate from '../components/date';
-import WeatherInfo from '../components/weather';
+import WeatherInfo, {WeatherInfoData} from '../components/weather';
 import LocationToCity from '../components/location';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -13,9 +13,22 @@ export default function Home() {
     const [latitude, setLatitude] = useState(0.0);
     const [longitude, setLongitude] = useState(0.0);
     const [city, setCity] = useState('');
+    const [weatherData, setWeatherData] = useState<WeatherInfoData | null>(null);
     const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
     const [session, setSession] = useState<Session | null>(null);
-    const [selectedItems, setSelectedItems] = useState<any[]>([]); // Масив обраних елементів
+    const [selectedItems, setSelectedItems] = useState<any[]>([]); 
+
+    const handleLocationChange = (city: string, latitude: number, longitude: number) => {
+        setCity(city);
+        setLatitude(latitude);
+        setLongitude(longitude);
+    };
+    LocationToCity({ onLocationChange: handleLocationChange });
+
+    useEffect(() => {
+        const weatherData = WeatherInfo({ latitude, longitude });
+        setWeatherData(weatherData as WeatherInfoData);
+      }, [latitude, longitude]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -93,9 +106,7 @@ export default function Home() {
                     weather_type: 'rain',
                     city: city, // Використовуємо змінну city для міста
                 },
-            ]).select()
-            
-            console.log(weather[0].id);
+            ]).select();
         if (WeatherError) {
             throw WeatherError;
         }
@@ -152,14 +163,60 @@ export default function Home() {
                 showsHorizontalScrollIndicator={false}>
                 <View style={{alignItems: 'center'}}>
                     <Text style={styles.title}><GetDate /></Text>
-                    <LocationToCity onLocationChange={(city, latitude, longitude) => {
-                        setLatitude(latitude);
-                        setLongitude(longitude);
-                        setCity(city);
-                    }} />
+                    {city ? (
+                        <Text style={{fontSize: 15}}>{city}</Text>
+                    ) : (
+                        <Text>Очікуємо...</Text>
+                    )}
                 </View>
                 <View style={{alignItems: 'center'}}>
-                {city && <WeatherInfo latitude={latitude} longitude={longitude} />}
+                <View>
+                    <View style={{flexDirection: 'row',  justifyContent: 'space-between', marginBottom: 20, marginTop: 30 }}>
+                        <View style={{}}>
+                            <Text style={{ fontSize: 15}}>зараз</Text>
+                            <View style={{flexDirection: 'row', alignItems: 'center', gap: 5}} >
+                                {weatherData && (
+                                    <Text style={{fontSize: 32}}>{weatherData.temp > 0 ? '+' : ''}{Math.round(weatherData.temp)}°</Text>
+                                )}
+                                {weatherData && (
+                                    <Image
+                                        source={{uri: `http://openweathermap.org/img/wn/${weatherData.icon}.png`}}
+                                        style={{width: 60, height: 50}}
+                                    />
+                                )}
+                            </View>
+                            {weatherData && (
+                                <Text>{weatherData.description}</Text>
+                            )}
+                        </View>
+                        <View style={{justifyContent: "center"}}>
+                            <Text style={{ fontSize: 15}}>Вологість: {weatherData?.humidity}%</Text>
+                            <Text style={{ fontSize: 15}}>Вітер: {weatherData?.speed} м/с</Text>
+                        </View>
+                    </View>
+                    <FlatList
+                        style={{maxHeight: 150, marginBottom: 20}}
+                        data={weatherData?.forecast} 
+                        keyExtractor={(item) => item.dt.toString()}
+                        renderItem={({ item }) => {
+                            const date = new Date(item.dt * 1000);
+                            return (
+                                <View style={{alignItems: "center"}}>
+                                    <Image
+                                        source={{uri: `http://openweathermap.org/img/wn/${item.weather[0].icon}.png`}}
+                                        style={{width: 60, height: 50}}
+                                    />
+                                    <Text style={{ fontSize: 20, marginBottom: 12}}>{item.main.temp > 0 ? '+' : ''}{Math.round(item.main.temp)}°</Text>
+                                    <Text style={{ fontSize: 15}}>{date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</Text>
+                                </View>
+                            );
+                        }}
+                        numColumns={8}
+                        contentContainerStyle={{}}
+                        columnWrapperStyle={{gap: 10}}
+                        scrollEnabled={false}
+                    />
+                </View>
                 </View>
                 {/* Виведення елементів гардеробу */}
                 

@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Text } from 'react-native';
 import * as Location from 'expo-location';
 
-interface LocationToCityProps {
-  onLocationChange: (city: string, latitude: number, longitude: number) => void;
+// Define the props for the component, if any
+interface LocationToCityProps  {
+  onLocationChange?: (city: string, latitude: number, longitude: number) => void;
 }
 
-const LocationToCity: React.FC<LocationToCityProps> = ({ onLocationChange }) => {
+export default function LocationToCity ({ onLocationChange }:LocationToCityProps) {
   const [city, setCity] = useState<string>('');
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [latitude, setLatitude] = useState<number>(0.0);
+  const [longitude, setLongitude] = useState<number>(0.0);
 
   useEffect(() => {
     const getLocation = async () => {
@@ -20,7 +21,8 @@ const LocationToCity: React.FC<LocationToCityProps> = ({ onLocationChange }) => 
         }
 
         let location = await Location.getCurrentPositionAsync({});
-        setLocation(location);
+        setLatitude(location.coords.latitude);
+        setLongitude(location.coords.longitude);
         fetchCityName(location.coords.latitude, location.coords.longitude);
       } catch (error) {
         console.warn('Помилка при отриманні місцезнаходження:', error);
@@ -36,21 +38,14 @@ const LocationToCity: React.FC<LocationToCityProps> = ({ onLocationChange }) => 
       const data = await response.json();
       const cityName = data.address.city;
       setCity(cityName);
-      onLocationChange(cityName, latitude, longitude);
+      if (onLocationChange) {
+        onLocationChange(cityName, latitude, longitude);
+      }
     } catch (error) {
       console.warn('Помилка при отриманні назви міста:', error);
     }
   };
 
-  return (
-    <>
-      {city ? (
-        <Text style={{fontSize: 15}}>{city}</Text>
-      ) : (
-        <Text>Очікуємо...</Text>
-      )}
-    </>
-  );
+  return { city: city, latitude: latitude, longitude: longitude };
 };
 
-export default LocationToCity;
