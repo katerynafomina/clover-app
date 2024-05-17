@@ -1,34 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Image, ScrollView, Pressable, FlatList } from 'react-native';
+import { StyleSheet, View, Text, Image, ScrollView, Pressable, FlatList, Alert } from 'react-native';
 import GetDate from '../components/date';
-import WeatherInfo, {WeatherInfoData} from '../components/weather';
 import LocationToCity from '../components/location';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Alert } from 'react-native';
 import { Category } from '../constants/Categoris';
-import  Button  from '../components/Button';
+import Button from '../components/Button';
 
 export default function Home() {
     const [latitude, setLatitude] = useState(0.0);
     const [longitude, setLongitude] = useState(0.0);
     const [city, setCity] = useState('');
-    const [weatherData, setWeatherData] = useState<WeatherInfoData | null>(null);
+    const [weatherData, setWeatherData] = useState<any>(null);
     const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
     const [session, setSession] = useState<Session | null>(null);
-    const [selectedItems, setSelectedItems] = useState<any[]>([]); 
+    const [selectedItems, setSelectedItems] = useState<any[]>([]);
 
     const handleLocationChange = (city: string, latitude: number, longitude: number) => {
         setCity(city);
         setLatitude(latitude);
         setLongitude(longitude);
     };
+
     LocationToCity({ onLocationChange: handleLocationChange });
 
     useEffect(() => {
-        const weatherData = WeatherInfo({ latitude, longitude });
-        setWeatherData(weatherData as WeatherInfoData);
-      }, [latitude, longitude]);
+        const fetchWeatherData = async () => {
+            try {
+                if (latitude === undefined || longitude === undefined) {
+                    console.warn('Некоректні значення пропів latitude або longitude');
+                    return;
+                }
+
+                const apiKey = '44c35ae749a723b6da10c40ea25b18b6';
+                const apiUrl1 = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&lang=ua&units=metric`;
+                const apiUrl2 = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&lang=ua&units=metric`;
+
+                const response1 = await fetch(apiUrl1);
+                const response2 = await fetch(apiUrl2);
+                const data1 = await response1.json();
+                const data2 = await response2.json();
+
+                setWeatherData({
+                    temp: data1.main.temp,
+                    icon: data1.weather[0].icon,
+                    description: data1.weather[0].description,
+                    humidity: data1.main.humidity,
+                    speed: data1.wind.speed,
+                    forecast: data2.list.slice(0, 5)
+                });
+            } catch (error) {
+                console.warn('Помилка при отриманні погодових даних:', error);
+            }
+        };
+
+        if (latitude !== 0.0 && longitude !== 0.0) {
+            fetchWeatherData();
+        }
+    }, [latitude, longitude]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -51,7 +80,6 @@ export default function Home() {
                 if (error) {
                     console.error('Error fetching wardrobe items:', error.message);
                 } else {
-                    // Отримання публічних URL для зображень
                     const itemsWithUrls = await Promise.all(
                         wardrobe.map(async (item) => {
                             const { data } = await supabase.storage
@@ -74,152 +102,143 @@ export default function Home() {
         }
     }, [session]);
 
-    // Функція для фільтрації унікальних категорій
     const getUniqueCategories = () => {
         return Array.from(new Set(wardrobeItems.map(item => item.category)));
     };
 
     const toggleItemSelection = (item: any) => {
-        // Перевіряємо, чи вже вибраний елемент
         const isSelected = selectedItems.some((selected) => selected.id === item.id);
 
         if (isSelected) {
-            // Видалення елементу із списку обраних, якщо він вже був вибраний
             setSelectedItems((prevItems) => prevItems.filter((selected) => selected.id !== item.id));
         } else {
-            // Додавання елементу до списку обраних, якщо він ще не був вибраний
             setSelectedItems((prevItems) => [...prevItems, item]);
         }
     };
 
-   const insertWeather = async () => {
-    try {
-        const { data: weather, error: WeatherError } = await supabase
-            .from('weather')
-            .insert([
-                {
-                    min_tempurature: 15,
-                    max_tempurature: 15,
-                    humidity: 10,
-                    precipitation: 10,
-                    wind: 0,
-                    weather_type: 'rain',
-                    city: city, // Використовуємо змінну city для міста
-                },
-            ]).select();
-        if (WeatherError) {
-            throw WeatherError;
-        }
-
-        if (weather ) {
-            const weatherId = weather[0].id;
-
-            // Додаємо новий образ у таблицю outfits з посиланням на погоду
-            const { data: outfit, error: OutfitError } = await supabase
-                .from('outfits')
+    const insertWeather = async () => {
+        try {
+            const { data: weather, error: WeatherError } = await supabase
+                .from('weather')
                 .insert([
                     {
-                        user_id: session?.user.id,
-                        weather_id: weatherId,
+                        min_tempurature: weatherData.temp,
+                        max_tempurature: weatherData.temp,
+                        humidity: weatherData.humidity,
+                        precipitation: weatherData.humidity,
+                        wind: weatherData.speed,
+                        weather_type: weatherData.description,
+                        city: city,
                     },
-                ]).select('id');
-
-            if (OutfitError) {
-                throw OutfitError;
+                ]).select();
+            if (WeatherError) {
+                throw WeatherError;
             }
 
-            if (outfit && outfit.length > 0) {
-                const outfitId = outfit[0].id;
+            if (weather) {
+                const weatherId = weather[0].id;
 
-                // Додаємо обрані елементи у таблицю outfit_item з посиланням на образ
-                const itemsToInsert = selectedItems.map((item) => ({
-                    outfit_id: outfitId,
-                    item_id: item.id,
-                }));
+                const { data: outfit, error: OutfitError } = await supabase
+                    .from('outfits')
+                    .insert([
+                        {
+                            user_id: session?.user.id,
+                            weather_id: weatherId,
+                        },
+                    ]).select('id');
 
-                const { data: insertedItems, error: InsertError } = await supabase
-                    .from('outfit_item')
-                    .insert(itemsToInsert);
-
-                if (InsertError) {
-                    throw InsertError;
+                if (OutfitError) {
+                    throw OutfitError;
                 }
 
-                Alert.alert('Образ успішно додано!');
-            }
-        }
-    } catch (error) {
-        console.error('Error inserting weather and outfit:', error);
-        Alert.alert('Помилка під час додавання образу. Будь ласка, спробуйте ще раз.');
-    }
-};
+                if (outfit && outfit.length > 0) {
+                    const outfitId = outfit[0].id;
 
+                    const itemsToInsert = selectedItems.map((item) => ({
+                        outfit_id: outfitId,
+                        item_id: item.id,
+                    }));
+
+                    const { data: insertedItems, error: InsertError } = await supabase
+                        .from('outfit_item')
+                        .insert(itemsToInsert);
+
+                    if (InsertError) {
+                        throw InsertError;
+                    }
+
+                    Alert.alert('Образ успішно додано!');
+                }
+            }
+        } catch (error) {
+            console.error('Error inserting weather and outfit:', error);
+            Alert.alert('Помилка під час додавання образу. Будь ласка, спробуйте ще раз.');
+        }
+    };
 
     return (
         <View style={styles.container}>
-            <ScrollView 
+            <ScrollView
                 style={{ width: '100%' }}
                 showsVerticalScrollIndicator={false}
                 showsHorizontalScrollIndicator={false}>
-                <View style={{alignItems: 'center'}}>
+                <View style={{ alignItems: 'center' }}>
                     <Text style={styles.title}><GetDate /></Text>
                     {city ? (
-                        <Text style={{fontSize: 15}}>{city}</Text>
+                        <Text style={{ fontSize: 15 }}>{city}</Text>
                     ) : (
                         <Text>Очікуємо...</Text>
                     )}
                 </View>
-                <View style={{alignItems: 'center'}}>
-                <View>
-                    <View style={{flexDirection: 'row',  justifyContent: 'space-between', marginBottom: 20, marginTop: 30 }}>
-                        <View style={{}}>
-                            <Text style={{ fontSize: 15}}>зараз</Text>
-                            <View style={{flexDirection: 'row', alignItems: 'center', gap: 5}} >
+                <View style={{ alignItems: 'center' }}>
+                    <View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, marginTop: 30 }}>
+                            <View style={{}}>
+                                <Text style={{ fontSize: 15 }}>зараз</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }} >
+                                    {weatherData && (
+                                        <Text style={{ fontSize: 32 }}>{weatherData.temp > 0 ? '+' : ''}{Math.round(weatherData.temp)}°</Text>
+                                    )}
+                                    {weatherData && (
+                                        <Image
+                                            source={{ uri: `http://openweathermap.org/img/wn/${weatherData.icon}.png` }}
+                                            style={{ width: 60, height: 50 }}
+                                        />
+                                    )}
+                                </View>
                                 {weatherData && (
-                                    <Text style={{fontSize: 32}}>{weatherData.temp > 0 ? '+' : ''}{Math.round(weatherData.temp)}°</Text>
-                                )}
-                                {weatherData && (
-                                    <Image
-                                        source={{uri: `http://openweathermap.org/img/wn/${weatherData.icon}.png`}}
-                                        style={{width: 60, height: 50}}
-                                    />
+                                    <Text>{weatherData.description}</Text>
                                 )}
                             </View>
-                            {weatherData && (
-                                <Text>{weatherData.description}</Text>
-                            )}
+                            <View style={{ justifyContent: "center" }}>
+                                <Text style={{ fontSize: 15 }}>Вологість: {weatherData?.humidity}%</Text>
+                                <Text style={{ fontSize: 15 }}>Вітер: {weatherData?.speed} м/с</Text>
+                            </View>
                         </View>
-                        <View style={{justifyContent: "center"}}>
-                            <Text style={{ fontSize: 15}}>Вологість: {weatherData?.humidity}%</Text>
-                            <Text style={{ fontSize: 15}}>Вітер: {weatherData?.speed} м/с</Text>
-                        </View>
+                        <FlatList
+                            style={{ maxHeight: 150, marginBottom: 20 }}
+                            data={weatherData?.forecast}
+                            keyExtractor={(item) => item.dt.toString()}
+                            renderItem={({ item }) => {
+                                const date = new Date(item.dt * 1000);
+                                return (
+                                    <View style={{ alignItems: "center" }}>
+                                        <Image
+                                            source={{ uri: `http://openweathermap.org/img/wn/${item.weather[0].icon}.png` }}
+                                            style={{ width: 60, height: 50 }}
+                                        />
+                                        <Text style={{ fontSize: 20, marginBottom: 12 }}>{item.main.temp > 0 ? '+' : ''}{Math.round(item.main.temp)}°</Text>
+                                        <Text style={{ fontSize: 15 }}>{date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</Text>
+                                    </View>
+                                );
+                            }}
+                            numColumns={8}
+                            contentContainerStyle={{}}
+                            columnWrapperStyle={{ gap: 10 }}
+                            scrollEnabled={false}
+                        />
                     </View>
-                    <FlatList
-                        style={{maxHeight: 150, marginBottom: 20}}
-                        data={weatherData?.forecast} 
-                        keyExtractor={(item) => item.dt.toString()}
-                        renderItem={({ item }) => {
-                            const date = new Date(item.dt * 1000);
-                            return (
-                                <View style={{alignItems: "center"}}>
-                                    <Image
-                                        source={{uri: `http://openweathermap.org/img/wn/${item.weather[0].icon}.png`}}
-                                        style={{width: 60, height: 50}}
-                                    />
-                                    <Text style={{ fontSize: 20, marginBottom: 12}}>{item.main.temp > 0 ? '+' : ''}{Math.round(item.main.temp)}°</Text>
-                                    <Text style={{ fontSize: 15}}>{date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</Text>
-                                </View>
-                            );
-                        }}
-                        numColumns={8}
-                        contentContainerStyle={{}}
-                        columnWrapperStyle={{gap: 10}}
-                        scrollEnabled={false}
-                    />
                 </View>
-                </View>
-                {/* Виведення елементів гардеробу */}
-                
                 <Text style={styles.sectionTitle}>Складіть образ на сьогодні</Text>
                 {getUniqueCategories().map((category, index) => (
                     <View key={index}>
@@ -228,7 +247,7 @@ export default function Home() {
                             data={wardrobeItems.filter(item => item.category === category)}
                             keyExtractor={(item) => item.id.toString()}
                             horizontal
-                            contentContainerStyle={{ paddingBottom: 5}}
+                            contentContainerStyle={{ paddingBottom: 5 }}
                             renderItem={({ item }) => (
                                 <Pressable
                                     style={[
@@ -238,14 +257,13 @@ export default function Home() {
                                     onPress={() => toggleItemSelection(item)}
                                 >
                                     <Image source={{ uri: item.image }} style={styles.image} />
-                                    {/* <Text>{item.category}</Text> */}
                                 </Pressable>
                             )}
                         />
                     </View>
                 ))}
-                <View style={{marginBottom: 20}}></View>
-                <Button text="додати образ" onPress={ insertWeather} />
+                <View style={{ marginBottom: 20 }}></View>
+                <Button text="додати образ" onPress={insertWeather} />
             </ScrollView>
         </View>
     );

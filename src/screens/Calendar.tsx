@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { CalendarList } from 'react-native-calendars';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
+import { Session } from '@supabase/supabase-js';
 
 type MonthNames = {
   [key: string]: string;
@@ -25,24 +27,66 @@ const monthNames: MonthNames = {
 export default function Calendar() {
   const [markedDates, setMarkedDates] = useState<{ [date: string]: { marked: boolean } }>({});
   const navigation = useNavigation() as NavigationProp<any>;
-  
-  
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+        });
+
+  }, []);
+
+  useEffect(() => {
+    const fetchOutfits = async () => {
+      if (!session || !session.user) {
+        return; // Return early if session or user is not available
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('outfits')
+          .select('created_at')
+          .eq('user_id', session.user.id);
+
+        if (error) {
+          console.error('Error fetching outfits:', error.message);
+          return;
+        }
+        
+        const newMarkedDates: { [date: string]: { marked: boolean } } = {};
+
+        data.forEach((outfit: { created_at: string }) => {
+          const date = outfit.created_at.split('T')[0]; // Get date in YYYY-MM-DD format
+          newMarkedDates[date] = { marked: true };
+        });
+
+        setMarkedDates(newMarkedDates);
+      } catch (error) {
+        console.error('Error fetching outfits:', error);
+      }
+    };
+
+    if (session && session.user) {
+      fetchOutfits();
+    }
+  }, [session]); // Fetch outfits when session or user changes
+
   return (
     <View style={{ flex: 1 }}>
       <CalendarList
-        // Параметри календаря
-        horizontal={false} // Робить календар горизонтальним
-        pagingEnabled={false} // Дозволяє прокручувати по сторінках (місяцях)
-        pastScrollRange={24} // Кількість місяців, які залишаються позаду
-        futureScrollRange={24} // Кількість місяців, які залишаються вперед
-        scrollEnabled={true} // Дозволяє прокрутку
-        showScrollIndicator={true} // Показує індикатор прокрутки
+        // Calendar parameters
+        horizontal={false}
+        pagingEnabled={false}
+        pastScrollRange={24}
+        futureScrollRange={24}
+        scrollEnabled={true}
+        showScrollIndicator={true}
 
-        // Обробник подій при виборі дати
+        // Event handler for date press
         onDayPress={(day) => {
-          console.log('Ви вибрали дату:', day.dateString);
-          // Тут можеш додати навігацію на нову сторінку з відкриттям інформації про обрану дату
-          navigation.navigate('DayOutfit', { day: day.dateString });
+          console.log('Selected date:', day.dateString);
+          // Navigate to a new page with information about the selected date
+          navigation.navigate('DayOutfit', { day: day.dateString});
         }}
 
         theme={{
@@ -80,10 +124,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   monthHeaderText: {
     fontSize: 18,

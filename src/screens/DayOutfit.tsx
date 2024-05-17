@@ -1,108 +1,143 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, Image, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import  removeBackground  from '../components/removeBack';
-import { RouteProp } from '@react-navigation/native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { supabase } from '../lib/supabase';
 
-type DayOutfitParams = {
-    Date :{
-        day: string;
-    };
-}
-type DayOutfitRouteProp = RouteProp<DayOutfitParams, 'Date'>;
+type WeatherData = {
+  weather_type: string;
+  min_temperature: number;
+  max_temperature: number;
+  precipitation: number;
+  humidity: number;
+  wind: number;
+};
 
+type OutfitItem = {
+  id: number;
+  item_id: number;
+  created_at: string;
+  // Add other necessary fields
+};
 
-const DayOutfit =({ route, }: {route:DayOutfitRouteProp}) => {
+const DayOutfit = ({ route }: { route: any }) => {
   const { day } = route.params;
-const [imageUrl, setImageUrl] = useState<string>('');
-    const [processedImagePath, setProcessedImagePath] = useState<string | null>(null);
-    const [loading, setLoading] = useState<boolean>(false);
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [outfitItems, setOutfitItems] = useState<OutfitItem[]>([]);
 
-    const handleRemoveBackground = async () => {
-        if (!imageUrl) {
-            Alert.alert("Error", "Please enter a valid image URL");
-            return;
-        }
+  const getOutfitIdsForDay = async (selectedDay: string) => {
+    try {
+      const { data: outfits, error } = await supabase
+        .from('outfits')
+        .select('id')
+        .eq('created_at', selectedDay);
 
-        setLoading(true);
-        setProcessedImagePath(null);
+      if (error) {
+        console.error('Error fetching outfit ids:', error.message);
+        return [];
+      }
 
-        try {
-            const result = await removeBackground(imageUrl);
-            setProcessedImagePath(result?.toString() ?? '');
-            console.log(result);
-        } catch (error) {
-            if (error instanceof Error) {
-                Alert.alert("Error", "Failed to remove background: " + error.message);
-            } else {
-                Alert.alert("Error", "An unknown error occurred");
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
+      return outfits || [];
+    } catch (error) {
+      console.error('Error fetching outfit ids:', error);
+      return [];
+    }
+  };
 
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Background Removal</Text>
-            <TextInput
-                style={styles.input}
-                placeholder="Enter image URL"
-                value={imageUrl}
-                onChangeText={setImageUrl}
-                autoCapitalize="none"
-                keyboardType="url"
-            />
-            <Button title="Remove Background" onPress={handleRemoveBackground} />
-            {loading && <ActivityIndicator size="large" color="#0000ff" style={styles.loading} />}
-            {processedImagePath && (
-                <View style={styles.imageContainer}>
-                    <Text style={styles.label}>Processed Image:</Text>
-                    <Image source={{ uri: processedImagePath }} style={styles.image} />
-                </View>
-            )}
+  const fetchWeatherData = async () => {
+    try {
+      const { data: weatherData, error, count } = await supabase
+        .from('weather')
+        .select('*')
+        .eq('date', day)
+        .order('created_at', { ascending: false })
+        .range(0, 1); // Fetch only the latest weather data for the specified date
+
+      if (error) {
+        console.error('Error fetching weather data:', error.message);
+        return;
+      }
+
+      if (count === 0) {
+        console.warn('No weather data found for the specified date.');
+        return;
+      }
+
+      if (weatherData && weatherData.length > 0) {
+        const latestWeather = weatherData[0]; // Get the latest weather data
+        setWeatherData(latestWeather);
+      }
+    } catch (error) {
+      console.error('Error fetching weather data:', error);
+    }
+  };
+
+  const fetchOutfitItems = async () => {
+    try {
+      const outfitIds = await getOutfitIdsForDay(day);
+      const { data: outfitItems, error } = await supabase
+        .from('outfit_item')
+        .select()
+        .in('outfit_id', outfitIds.map((outfit) => outfit.id));
+
+      if (error) {
+        console.error('Error fetching outfit items:', error.message);
+        return;
+      }
+
+      if (outfitItems) {
+        setOutfitItems(outfitItems);
+      }
+    } catch (error) {
+      console.error('Error fetching outfit items:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchWeatherData();
+    fetchOutfitItems();
+  }, [day]);
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Weather for {day}</Text>
+      {weatherData ? (
+        <View>
+          <Text>Weather Type: {weatherData.weather_type}</Text>
+          <Text>Temperature: {weatherData.min_temperature}°C - {weatherData.max_temperature}°C</Text>
+          {/* Display other weather details */}
         </View>
-    );
+      ) : (
+        <Text>Loading weather...</Text>
+      )}
+
+      <Text style={styles.title}>Outfit for {day}</Text>
+      {outfitItems.length > 0 ? (
+        outfitItems.map((item) => (
+          <View key={item.id}>
+            {/* Display outfit item details */}
+            <Text>Outfit Item ID: {item.item_id}</Text>
+            {/* Add more outfit item details here */}
+          </View>
+        ))
+      ) : (
+        <Text>Loading outfit...</Text>
+      )}
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        padding: 16,
-        backgroundColor: '#f5f5f5',
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        marginBottom: 20,
-    },
-    input: {
-        height: 40,
-        borderColor: 'gray',
-        borderWidth: 1,
-        marginBottom: 10,
-        paddingHorizontal: 8,
-    },
-    button: {
-        marginBottom: 20,
-    },
-    loading: {
-        marginTop: 20,
-    },
-    imageContainer: {
-        marginTop: 20,
-        alignItems: 'center',
-    },
-    label: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 10,
-    },
-    image: {
-        width: 200,
-        height: 200,
-    },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#f5f5f5',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
 });
 
 export default DayOutfit;
