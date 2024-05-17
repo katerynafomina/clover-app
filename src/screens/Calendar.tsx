@@ -31,9 +31,8 @@ export default function Calendar() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-        });
-
+      setSession(session);
+    });
   }, []);
 
   useEffect(() => {
@@ -52,7 +51,7 @@ export default function Calendar() {
           console.error('Error fetching outfits:', error.message);
           return;
         }
-        
+
         const newMarkedDates: { [date: string]: { marked: boolean } } = {};
 
         data.forEach((outfit: { created_at: string }) => {
@@ -71,6 +70,31 @@ export default function Calendar() {
     }
   }, [session]); // Fetch outfits when session or user changes
 
+  const handleDayPress = async (day: any) => {
+    try {
+      const { data: outfits, error } = await supabase
+        .from('outfits')
+        .select('id')
+        .eq('user_id', session?.user?.id)
+        .filter('created_at::date', 'eq', day.dateString);
+
+      if (error) {
+        console.error('Error fetching outfit ID calendar:', error.message);
+        return;
+      }
+
+      if (outfits && outfits.length > 0) {
+        const outfitId = outfits[0].id;
+        navigation.navigate('DayOutfit', { day: day.dateString,outfitId: outfitId});
+      } else {
+        console.warn('No outfit found for the selected date.');
+        navigation.navigate('DayOutfit', { day: day.dateString, outfitId: null });
+      }
+    } catch (error) {
+      console.error('Error fetching outfit ID:', error);
+    }
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <CalendarList
@@ -83,11 +107,7 @@ export default function Calendar() {
         showScrollIndicator={true}
 
         // Event handler for date press
-        onDayPress={(day) => {
-          console.log('Selected date:', day.dateString);
-          // Navigate to a new page with information about the selected date
-          navigation.navigate('DayOutfit', { day: day.dateString});
-        }}
+        onDayPress={handleDayPress}
 
         theme={{
           backgroundColor: '#ffffff',

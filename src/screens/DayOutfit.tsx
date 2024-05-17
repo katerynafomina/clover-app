@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { Session } from '@supabase/supabase-js';
 
 type WeatherData = {
   weather_type: string;
-  min_temperature: number;
-  max_temperature: number;
+  min_tempurature: number;
+  max_tempurature: number;
   precipitation: number;
   humidity: number;
   wind: number;
@@ -19,22 +20,31 @@ type OutfitItem = {
 };
 
 const DayOutfit = ({ route }: { route: any }) => {
-  const { day } = route.params;
+    const { day } = route.params;
+    const {outfitId} = route.params;
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
-  const [outfitItems, setOutfitItems] = useState<OutfitItem[]>([]);
+    const [outfitItems, setOutfitItems] = useState<OutfitItem[]>([]);
+    const [session, setSession] = useState<Session | null>(null);
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+        });
+    }, [])
 
   const getOutfitIdsForDay = async (selectedDay: string) => {
     try {
-      const { data: outfits, error } = await supabase
+         const { data: outfits, error } = await supabase
         .from('outfits')
-        .select('id')
-        .eq('created_at', selectedDay);
-
+        .select('id, weather_id')
+        .eq('user_id', session?.user?.id)
+         .filter('created_at::date', 'eq', selectedDay);
+        console.log(outfits);
+        console.log(outfitId);
       if (error) {
         console.error('Error fetching outfit ids:', error.message);
         return [];
-      }
-
+        }
+        
       return outfits || [];
     } catch (error) {
       console.error('Error fetching outfit ids:', error);
@@ -47,7 +57,7 @@ const DayOutfit = ({ route }: { route: any }) => {
       const { data: weatherData, error, count } = await supabase
         .from('weather')
         .select('*')
-        .eq('date', day)
+          .eq('date', day)
         .order('created_at', { ascending: false })
         .range(0, 1); // Fetch only the latest weather data for the specified date
 
@@ -60,7 +70,7 @@ const DayOutfit = ({ route }: { route: any }) => {
         console.warn('No weather data found for the specified date.');
         return;
       }
-
+    //   console.log(weatherData);
       if (weatherData && weatherData.length > 0) {
         const latestWeather = weatherData[0]; // Get the latest weather data
         setWeatherData(latestWeather);
@@ -72,19 +82,20 @@ const DayOutfit = ({ route }: { route: any }) => {
 
   const fetchOutfitItems = async () => {
     try {
-      const outfitIds = await getOutfitIdsForDay(day);
+        const outfitIds = await getOutfitIdsForDay(day);
+        // console.log(outfitIds);
       const { data: outfitItems, error } = await supabase
         .from('outfit_item')
-        .select()
-        .in('outfit_id', outfitIds.map((outfit) => outfit.id));
+        .select('item_id')
+        .eq('outfit_id', outfitIds[0]);
 
       if (error) {
         console.error('Error fetching outfit items:', error.message);
         return;
       }
-
+      console.log(outfitItems);
       if (outfitItems) {
-        setOutfitItems(outfitItems);
+        
       }
     } catch (error) {
       console.error('Error fetching outfit items:', error);
@@ -102,7 +113,7 @@ const DayOutfit = ({ route }: { route: any }) => {
       {weatherData ? (
         <View>
           <Text>Weather Type: {weatherData.weather_type}</Text>
-          <Text>Temperature: {weatherData.min_temperature}°C - {weatherData.max_temperature}°C</Text>
+          <Text>Temperature: {weatherData.min_tempurature}°C - {weatherData.min_tempurature}°C</Text>
           {/* Display other weather details */}
         </View>
       ) : (

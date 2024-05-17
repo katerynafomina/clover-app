@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, Image } from 'react-native';
 import { AntDesign } from '@expo/vector-icons';
 import { supabase } from './src/lib/supabase';
 import Auth from './src/screens/Auth';
@@ -26,7 +26,12 @@ const ClosetStack = () => {
         name="ClosetCategories"
         component={ClosetCategories}
         options={{
-          headerTitle: 'Категорії',
+           headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />),
           headerShown: true,
         }}
       />
@@ -34,7 +39,12 @@ const ClosetStack = () => {
         name="AddItemScreen"
         component={AddItemScreen}
         options={{
-          headerTitle: 'Додавання одягу',
+           headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />),
           headerShown: true,
         }}
       />
@@ -42,7 +52,12 @@ const ClosetStack = () => {
         name="CategoryDetailsScreen"
         component={CategoryDetailsScreen}
         options={({ route }) => ({
-          headerTitle: route.params.category,
+          headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />),
           headerShown: true,
         })}
       />
@@ -58,7 +73,12 @@ const CalendarStack = () => {
         name="Calendar"
         component={Calendar}
         options={{
-          headerTitle: 'Календар',
+           headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />),
           headerShown: true,
         }}
       />
@@ -66,7 +86,12 @@ const CalendarStack = () => {
         name='DayOutfit'
         component={DayOutfit}
         options={{
-          headerTitle: 'Обрана дата',
+           headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />),
           headerShown: true,
         }}
       />
@@ -81,7 +106,12 @@ const HomeTabs = () => {
       <Tab.Screen name="Home"
         component={Home}
         options={{
-          headerTitle: 'Головна',
+          headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />),
           headerRight: () => (
             <Pressable onPress={() => supabase.auth.signOut()}>
               {({ pressed }) => (
