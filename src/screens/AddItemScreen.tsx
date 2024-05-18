@@ -5,90 +5,89 @@ import * as ImagePicker from 'expo-image-picker';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import removeBackground from '../components/removeBack';
-import { Alert } from 'react-native';
-import { Image, Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View, ScrollView } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 
 const AddItemScreen = () => {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [imageShown, setImageShown] = useState<string>('');
-    const [showPicker, setShowPicker] = useState(false);
-    const [selectedCategory, setSelectedCategory] = useState<number>();
-    const [session, setSession] = useState<Session | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [showSubPicker, setSubShowPicker] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [fileExt, setFileExt] = useState('');
 
-   useEffect(() => {
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-    })
+      setSession(session);
+    });
 
     supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-  }, [])
+      setSession(session);
+    });
+  }, []);
 
-    const pickImage = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [4, 3],
-                quality: 1,
-            });
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+      });
 
-            if (!result.canceled ) {
-                setImageUrl(result.assets[0].uri);
-            }
-        } catch (error) {
-            console.error('Image picker error:', error);
-        }
+      if (!result.canceled) {
+        setImageUrl(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+    }
   };
-  
-  const prossesImage = async (path:string) => {
+
+  const processImage = async (path: string) => {
     try {
       console.log('Processing image:', imageUrl);
-        const { data: image} = await supabase.storage
+      const { data: image } = await supabase.storage
         .from('clothes')
         .getPublicUrl(path);
-        // Process image to remove background
-        const processedImagePath = await removeBackground(image.publicUrl);
-        if (!processedImagePath) {
-          throw new Error('Failed to process image background.');
-        }
-        console.log('Processed image path:', processedImagePath);
-        // Read processed image as Base64
-        const base64Image = await FileSystem.readAsStringAsync(processedImagePath, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+
+      const processedImagePath = await removeBackground(image.publicUrl);
+      if (!processedImagePath) {
+        throw new Error('Failed to process image background.');
+      }
+      console.log('Processed image path:', processedImagePath);
+
+      const base64Image = await FileSystem.readAsStringAsync(processedImagePath, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
       console.log('Base64 image:', base64Image);
-      const arraybuffer = await fetch(processedImagePath).then((res) => res.arrayBuffer())
-        // Upload processed image (Base64) to storage
-        const { data: processedUploadData, error: processedUploadError } = await supabase.storage
-          .from('clothes')
-          .upload(`${Date.now()}_processed.${'jpeg'}`, arraybuffer, {
-            contentType: 'image/jpeg',
-          });
 
-        if (processedUploadError) {
-          throw processedUploadError;
-        }
+      const arrayBuffer = await fetch(processedImagePath).then((res) => res.arrayBuffer());
 
-        const processedImageUrl = processedUploadData?.path ?? '';
+      const { data: processedUploadData, error: processedUploadError } = await supabase.storage
+        .from('clothes')
+        .upload(`${Date.now()}_processed.jpeg`, arrayBuffer, {
+          contentType: 'image/jpeg',
+        });
 
-        // Set the processed image URL
-        setImageUrl(processedImageUrl);
+      if (processedUploadError) {
+        throw processedUploadError;
+      }
+
+      const processedImageUrl = processedUploadData?.path ?? '';
+
+      setImageUrl(processedImageUrl);
       Alert.alert('Image uploaded and processed successfully!');
-      console.log()
       setImageShown(processedImageUrl);
 
-      } catch (error) {
-        console.error('Upload and process image error:', error);
-        Alert.alert('Failed to upload and process image. Please try again.');
-      } finally {
-        setUploading(false);
-      }
+    } catch (error) {
+      console.error('Upload and process image error:', error);
+      Alert.alert('Failed to upload and process image. Please try again.');
+    } finally {
+      setUploading(false);
     }
+  };
 
   const uploadAndProcessImage = async () => {
     try {
@@ -113,152 +112,180 @@ const AddItemScreen = () => {
       if (!response.ok) {
         throw new Error(`Failed to fetch image: ${response.status} - ${response.statusText}`);
       }
-      const arraybuffer = await fetch(image.uri).then((res) => res.arrayBuffer())
+      const arrayBuffer = await fetch(image.uri).then((res) => res.arrayBuffer());
 
-      const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg'
-      const path = `${Date.now()}.${fileExt}`
+      const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg';
+      const path = `${Date.now()}.${fileExt}`;
       const { data, error: uploadError } = await supabase.storage
         .from('clothes')
-        .upload(path, arraybuffer, {
+        .upload(path, arrayBuffer, {
           contentType: image.mimeType ?? 'image/jpeg',
-        })
+        });
       console.log('Image uploaded:', data?.path);
-      
+
       if (uploadError) {
-        throw uploadError
+        throw uploadError;
       }
       setImageUrl(data?.path);
       console.log('Image URL:', imageUrl);
-      prossesImage(data?.path);
-      
+      processImage(data?.path);
+
     } catch (error) {
       console.error('Image upload error:', error);
       Alert.alert('Failed to upload image. Please try again.');
-    };
-    
-  }
+    }
+  };
 
-    const handleCategoryChange = (itemValue: number) => {
-        setSelectedCategory(itemValue);
-        setShowPicker(false); // Close the picker after selection
-    };
+  const handleCategoryChange = (category: Category) => {
+    setSelectedCategory(category);
+    setSelectedSubcategory(null);
+    setShowPicker(false);
+    setSubShowPicker(true);
+  };
 
-    const addItemToWardrobe = async () => {
-        if (selectedCategory === undefined || !imageUrl) {
-            Alert.alert('Please select a category and upload an image.');
-            return;
-        }
+  const handleSubcategoryChange = (subcategory: string) => {
+    setSelectedSubcategory(subcategory);
+    setSubShowPicker(false);
+  };
 
-        try {
-            const { data, error } = await supabase
-                .from('wardrobe')
-                .insert({
-                    user_id: session?.user?.id,
-                    category: categories.find((category) => category.id === selectedCategory)?.name,
-                    photo_url: imageUrl,
-                });
+  const addItemToWardrobe = async () => {
+    if (!selectedCategory || !selectedSubcategory || !imageUrl) {
+      Alert.alert('Please select a category, subcategory and upload an image.');
+      return;
+    }
 
-            if (error) {
-                throw error;
-            }
+    try {
+      const { data, error } = await supabase
+        .from('wardrobe')
+        .insert({
+          user_id: session?.user?.id,
+          category: selectedCategory.name,
+          subcategory: selectedSubcategory,
+          photo_url: imageUrl,
+        });
 
-            Alert.alert('Item added to wardrobe successfully!');
-        } catch (error) {
-            console.error('Add item error:', error);
-            Alert.alert('Failed to add item. Please try again.');
-        }
-    };
+      if (error) {
+        throw error;
+      }
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.selectImage}>
-                <Pressable onPress={pickImage}>
-                    <Image source={imageShown ? { uri: imageShown } : require('../assets/add-image.png')} style={styles.image} />
-                </Pressable>
-                <Pressable onPress={uploadAndProcessImage}>
-                    <Text style={styles.imageText}>Обрати фото</Text>
-                </Pressable>
-            </View>
+      Alert.alert('Item added to wardrobe successfully!');
+    } catch (error) {
+      console.error('Add item error:', error);
+      Alert.alert('Failed to add item. Please try again.');
+    }
+  };
 
-            <Pressable onPress={() => setShowPicker(!showPicker)}>
-                <Text style={styles.selectText}>
-                    {selectedCategory ? categories.find((category) => category.id === selectedCategory)?.name : 'Обрати категорію'}
-                </Text>
+  return (
+    <View style={styles.container}>
+      <View style={styles.selectImage}>
+        <Pressable onPress={pickImage}>
+          <Image source={imageShown ? { uri: imageShown } : require('../assets/add-image.png')} style={styles.image} />
+        </Pressable>
+        <Pressable onPress={uploadAndProcessImage}>
+          <Text style={styles.imageText}>Обрати фото</Text>
+        </Pressable>
+      </View>
+
+      <Pressable onPress={() => setShowPicker(!showPicker)}>
+        <Text style={styles.selectText}>
+          {selectedCategory ? selectedCategory.name : 'Обрати категорію'}
+        </Text>
+      </Pressable>
+
+      {showPicker && (
+        <ScrollView>
+          {categories.map((category) => (
+            <Pressable key={category.id} onPress={() => handleCategoryChange(category)}>
+              <Text style={category.id === selectedCategory?.id ? styles.selectedCategory : styles.categories}>
+                {category.name}
+              </Text>
             </Pressable>
+          ))}
+        </ScrollView>
+      )}
 
-            {showPicker && (
-                <ScrollView>
-                    {categories.map((category) => (
-                        <Pressable key={category.id} onPress={() => handleCategoryChange(category.id)}>
-                            <Text style={category.id === selectedCategory ? styles.selectedCategory : styles.categories}>
-                                {category.name}
-                            </Text>
-                        </Pressable>
-                    ))}
-                </ScrollView>
-            )}
+      {selectedCategory && (
+        <Pressable onPress={() => setSubShowPicker(!showSubPicker)}>
+          <Text style={styles.selectText}>
+            {selectedSubcategory ? selectedSubcategory : 'Обрати підкатегорію'}
+          </Text>
+        </Pressable>
+      )}
 
-            <View style={{ marginTop: 'auto' }}>
-                <Button text="Додати" onPress={addItemToWardrobe} />
-            </View>
-        </View>
-    );
+      {showSubPicker && selectedCategory && (
+        <ScrollView>
+          {selectedCategory.subcategories.map((subcategory) => (
+            <Pressable key={subcategory} onPress={() => handleSubcategoryChange(subcategory)}>
+              <Text style={subcategory === selectedSubcategory ? styles.selectedCategory : styles.categories}>
+                {subcategory}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
+      <View style={{ marginTop: 'auto' }}>
+        <Button text="Додати" onPress={addItemToWardrobe} />
+      </View>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 20,
-        justifyContent: 'flex-start',
-        alignItems: 'center',
-    },
-    image: {
-        width: 300,
-        height: 400,
-        resizeMode: 'contain',
-    },
-    imageText: {
-        textAlign: 'center',
-        textTransform: 'uppercase',
-        fontSize: 18,
-        fontWeight: '500',
-        borderWidth: 1,
-        borderColor: 'black',
-        borderRadius: 25,
-        padding: 13,
-    },
-    selectText: {
-        width: 250,
-        marginTop: 20,
-        paddingBottom: 10,
-        fontSize: 20,
-        color: 'black',
-        borderBottomWidth: 1,
-        borderBottomColor: 'black',
-        textAlign: 'center',
-    },
-    categories: {
-        width: 250,
-        paddingBottom: 10,
-        marginTop: 10,
-        fontSize: 18,
-        textAlign: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: 'black',
-    },
-    selectedCategory: {
-        width: 250,
-        paddingBottom: 10,
-        marginTop: 10,
-        fontSize: 18,
-        textAlign: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: 'black',
-        fontWeight: 'bold',
-    },
-    selectImage: {
-        alignItems: 'center',
-    },
+  container: {
+    flex: 1,
+    padding: 20,
+    paddingTop: 0,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+  },
+  image: {
+    width: 300,
+    height: 300,
+    resizeMode: 'contain',
+  },
+  imageText: {
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    fontSize: 18,
+    fontWeight: '500',
+    borderWidth: 1,
+    borderColor: 'black',
+    borderRadius: 25,
+    padding: 13,
+  },
+  selectText: {
+    width: 250,
+    marginTop: 20,
+    paddingBottom: 10,
+    fontSize: 20,
+    color: 'black',
+    borderBottomWidth: 1,
+    borderBottomColor: 'black',
+    textAlign: 'center',
+  },
+  categories: {
+    width: 250,
+    paddingBottom: 10,
+    marginTop: 10,
+    fontSize: 18,
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'black',
+  },
+  selectedCategory: {
+    width: 250,
+    paddingBottom: 10,
+    marginTop: 10,
+    fontSize: 18,
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'black',
+    fontWeight: 'bold',
+  },
+  selectImage: {
+    alignItems: 'center',
+  },
 });
 
 export default AddItemScreen;

@@ -1,81 +1,83 @@
 type Category = {
     id: number;
     name: string;
-    image: any; // Можете вказати точніший тип для зображення, якщо потрібно
+    image: any; 
+    subcategories: string[];
 };
 
 const categories: Category[] = [
     {
         id: 1,
-        name: 'Плаття',
-        image: require('../assets/categories/dress.png')
+        name: 'Головний убір',
+        image: require('../assets/categories/hat.png'),
+        subcategories: ["Кепки", "Шапки", "Панамки", "Берети", "Капелюхи"],
     },
     {
         id: 2,
-        name: 'Штани',
-        image: require('../assets/categories/pants.png')
+        name: 'Куртки',
+        image: require('../assets/categories/coat.png'),
+        subcategories: ['Пуховики', 'Пальта', 'Джинсовки', 'Вітровки', 'Тренчі']
     },
     {
         id: 3,
-        name: 'Сорочки',
-        image: require('../assets/categories/shirt.png')
+        name: 'Піджаки',
+        image: require('../assets/categories/suit.png'),
+        subcategories: ['Піджаки']
     },
     {
-
         id: 4,
-        name: 'Футболки',
-        image: require('../assets/categories/t-shirt.png')
+        name: 'Светри',
+        image: require('../assets/categories/sweater.png'),
+        subcategories: ['Світшоти', 'Кардигани | Зіп-сверти', 'Худі', "Водолазки"]
     },
     {
         id: 5,
-        name: 'Взуття',
-        image: require('../assets/categories/shoes.png')
+        name: 'Жилетки',
+        image: require('../assets/categories/gilet.png'),
+        subcategories: ['Жилетки']
     },
     {
         id: 6,
-        name: 'Спідниці',
-        image: require('../assets/categories/skirt.png')
+        name: 'Сорочки',
+        image: require('../assets/categories/shirt.png'),
+        subcategories: ['Сорочки']
     },
     {
         id: 7,
-        name: 'Шорти',
-        image: require('../assets/categories/shorts.png')
+        name: 'Футболки',
+        image: require('../assets/categories/t-shirt.png'),
+        subcategories: ['Футболки', 'Топи', 'Майки']
     },
     {
         id: 8,
-        name: 'Светри',
-        image: require('../assets/categories/sweater.png')
+        name: 'Плаття',
+        image: require('../assets/categories/dress.png'),
+        subcategories: ['Літні плаття', 'Демісезонні плаття']
     },
     {
         id: 9,
-        name: 'Куртки',
-        image: require('../assets/categories/coat.png')
+        name: 'Штани',
+        image: require('../assets/categories/pants.png'),
+        subcategories: ['Штани']
     },
     {
         id: 10,
-        name: 'Майки',
-        image: require('../assets/categories/camisole.png')
+        name: 'Спідниці',
+        image: require('../assets/categories/skirt.png'),
+        subcategories: ['Спідниці']
     },
     {
         id: 11,
-        name: 'Топи',
-        image: require('../assets/categories/top.png')
+        name: 'Шорти',
+        image: require('../assets/categories/shorts.png'),
+        subcategories: ['Шорти']
     },
     {
         id: 12,
-        name: 'Жилетки',
-        image: require('../assets/categories/gilet.png')
+        name: 'Взуття',
+        image: require('../assets/categories/shoes.png'),
+        subcategories: ['Кросівки/Кеди', 'Підбори', 'Черевики', 'Босоніжки' ]
     },
-    {
-        id: 13,
-        name: 'Головний убір',
-        image: require('../assets/categories/hat.png')
-    },
-    {
-        id: 14,
-        name: 'Піджаки',
-        image: require('../assets/categories/suit.png')
-    }
 ];
 
 export { categories, Category };
