@@ -129,6 +129,7 @@ export default function Home() {
                         wind: weatherData.speed,
                         weather_type: weatherData.description,
                         city: city,
+                        weather_icon: weatherData.icon,
                     },
                 ]).select();
             if (WeatherError) {
