@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { StyleSheet, View, Text, Image, ScrollView, Pressable, FlatList, Alert } from 'react-native';
 import GetDate from '../components/date';
 import LocationToCity from '../components/location';
@@ -6,6 +7,9 @@ import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Category } from '../constants/Categoris';
 import Button from '../components/Button';
+import getCategoriesByTemperature from '../components/GetSubCategoryForTemperature';
+import filterAndRandomizeCategories from '../components/GetCategoryForOutfut';
+import { get } from 'react-native/Libraries/TurboModule/TurboModuleRegistry';
 
 export default function Home() {
     const [latitude, setLatitude] = useState(0.0);
@@ -69,43 +73,84 @@ export default function Home() {
         });
     }, []);
 
-    useEffect(() => {
-        const fetchItems = async () => {
-            try {
-                const { data: wardrobe, error } = await supabase
-                    .from('wardrobe')
-                    .select('id, photo_url, category, user_id')
-                    .eq('user_id', session?.user.id);
-
-                if (error) {
-                    console.error('Error fetching wardrobe items:', error.message);
-                } else {
-                    const itemsWithUrls = await Promise.all(
-                        wardrobe.map(async (item) => {
-                            const { data } = await supabase.storage
-                                .from('clothes')
-                                .getPublicUrl(item.photo_url);
-
-                            return { ...item, image: data?.publicUrl };
-                        })
-                    );
-
-                    setWardrobeItems(itemsWithUrls);
+    useFocusEffect(
+        useCallback(() => {
+            const fetchItems = async () => {
+                try {
+                    const { data: wardrobe, error } = await supabase
+                        .from('wardrobe')
+                        .select('id, photo_url, category, user_id, subcategory')
+                        .eq('user_id', session?.user.id);
+    
+                    if (error) {
+                        console.error('Error fetching wardrobe items:', error.message);
+                    } else {
+                        const itemsWithUrls = await Promise.all(
+                            wardrobe.map(async (item) => {
+                                const { data } = await supabase.storage
+                                    .from('clothes')
+                                    .getPublicUrl(item.photo_url);
+    
+                                return { ...item, image: data?.publicUrl };
+                            })
+                        );
+    
+                        setWardrobeItems(itemsWithUrls);
+                    }
+                } catch (error) {
+                    console.error('Error fetching wardrobe items:', error);
                 }
-            } catch (error) {
-                console.error('Error fetching wardrobe items:', error);
+            };
+    
+            if (session) {
+                fetchItems();
             }
-        };
+        }, [session])
+    );
+    
+    useEffect(() => {
+        if (weatherData && wardrobeItems && !selectedItems.length) {
+            console.log(weatherData.temp)
+            const categories = getCategoriesByTemperature(weatherData.temp);
+            console.log(categories);
+            console.log("b       " + getUniqueSubCategories());
+            const filteredCategories = filterAndRandomizeCategories(categories, getUniqueSubCategories());
+            console.log(filteredCategories);
 
-        if (session) {
-            fetchItems();
+            if (filteredCategories && typeof filteredCategories === 'object') {
+                // Filter out null values from filteredCategories
+                const validFilteredCategories = Object.values(filteredCategories).filter((category) => category !== null);
+                console.log(validFilteredCategories);
+    
+                const selectedItems = wardrobeItems.filter((item) => 
+                    validFilteredCategories.some((category) => item.subcategory === category)
+                );
+                console.log(selectedItems);
+    
+                const randomItems = validFilteredCategories.map((category: string | null) => {
+                    const itemsInCategory = selectedItems.filter(item => item.subcategory === category);
+                    return itemsInCategory.length > 0
+                        ? itemsInCategory[Math.floor(Math.random() * itemsInCategory.length)]
+                        : null;
+                });
+    
+                console.log(randomItems);
+                for (const item of randomItems) {
+                    if (item) {
+                        setSelectedItems((prevItems) => [...prevItems, item]);
+                    }
+                }
+            }
         }
-    }, [session]);
-
+    }, [weatherData, wardrobeItems, selectedItems]);
+    
+    
     const getUniqueCategories = () => {
         return Array.from(new Set(wardrobeItems.map(item => item.category)));
     };
-
+    const getUniqueSubCategories = () => {
+        return Array.from(new Set(wardrobeItems.map(item => item.subcategory)));
+    };
     const toggleItemSelection = (item: any) => {
         const isSelected = selectedItems.some((selected) => selected.id === item.id);
 
@@ -118,6 +163,27 @@ export default function Home() {
 
     const insertWeather = async () => {
         try {
+            // Get the current date in YYYY-MM-DD format
+            const currentDateStr = new Date().toISOString().split('T')[0];
+    
+            // Check if an outfit for the current date already exists for the user
+            const { data: existingOutfits, error: existingOutfitsError } = await supabase
+                .from('outfits')
+                .select('id, weather:weather_id(*)')
+                .eq('user_id', session?.user.id)
+                .eq('weather.date', currentDateStr);
+    
+            if (existingOutfitsError) {
+                throw existingOutfitsError;
+            }
+    
+            if (existingOutfits.length > 0) {
+                // If an outfit for the current date already exists, show an alert
+                Alert.alert('Увага', 'Обрання для цієї дати вже існує.');
+                return;
+            }
+    
+            // Insert new weather data
             const { data: weather, error: WeatherError } = await supabase
                 .from('weather')
                 .insert([
@@ -131,14 +197,17 @@ export default function Home() {
                         city: city,
                         weather_icon: weatherData.icon,
                     },
-                ]).select();
+                ])
+                .select();
+    
             if (WeatherError) {
                 throw WeatherError;
             }
-
-            if (weather) {
+    
+            if (weather && weather.length > 0) {
                 const weatherId = weather[0].id;
-
+    
+                // Insert new outfit data
                 const { data: outfit, error: OutfitError } = await supabase
                     .from('outfits')
                     .insert([
@@ -146,28 +215,31 @@ export default function Home() {
                             user_id: session?.user.id,
                             weather_id: weatherId,
                         },
-                    ]).select('id');
-
+                    ])
+                    .select('id');
+    
                 if (OutfitError) {
                     throw OutfitError;
                 }
-
+    
                 if (outfit && outfit.length > 0) {
                     const outfitId = outfit[0].id;
-
+    
+                    // Prepare items to insert
                     const itemsToInsert = selectedItems.map((item) => ({
                         outfit_id: outfitId,
                         item_id: item.id,
                     }));
-
+    
+                    // Insert outfit items
                     const { data: insertedItems, error: InsertError } = await supabase
                         .from('outfit_item')
                         .insert(itemsToInsert);
-
+    
                     if (InsertError) {
                         throw InsertError;
                     }
-
+    
                     Alert.alert('Образ успішно додано!');
                 }
             }
@@ -176,6 +248,7 @@ export default function Home() {
             Alert.alert('Помилка під час додавання образу. Будь ласка, спробуйте ще раз.');
         }
     };
+    
 
     return (
         <View style={styles.container}>
@@ -248,7 +321,7 @@ export default function Home() {
                             data={wardrobeItems.filter(item => item.category === category)}
                             keyExtractor={(item) => item.id.toString()}
                             horizontal
-                            contentContainerStyle={{ paddingBottom: 5 }}
+                            contentContainerStyle={{ padding: 5, gap: 10}}
                             renderItem={({ item }) => (
                                 <Pressable
                                     style={[
@@ -263,7 +336,7 @@ export default function Home() {
                         />
                     </View>
                 ))}
-                <View style={{ marginBottom: 20 }}></View>
+                <View style={{ marginVertical: 20,}}></View>
                 <Button text="додати образ" onPress={insertWeather} />
             </ScrollView>
         </View>
@@ -289,7 +362,7 @@ const styles = StyleSheet.create({
     },
     categoryTitle: {
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: '500',
         marginTop: 10,
         textAlign: 'center',
     },

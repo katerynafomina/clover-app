@@ -5,7 +5,15 @@ export default function filterAndRandomizeCategories(categories: Categories, sub
     // Фільтруємо категорії за наявністю підкатегорій в масиві subcategories
     const filteredCategories: Categories = {};
     Object.keys(categories).forEach((key) => {
-        filteredCategories[key] = categories[key].filter(subcategory => subcategories.includes(subcategory));
+        for (const value of categories[key]) {
+            if (subcategories.includes(value)) {
+                if (!filteredCategories[key]) {
+                    filteredCategories[key] = [];
+                }
+                filteredCategories[key].push(value);
+            }
+        }
+        // filteredCategories[key] = categories[key].filter(subcategory => subcategories.includes(subcategory));
     });
 
     // Вибираємо рандомну підкатегорію для кожного типу одягу
@@ -16,15 +24,10 @@ export default function filterAndRandomizeCategories(categories: Categories, sub
         result[key] = category[randomIndex] || null;
     });
 
+    // Умовне видалення нижньої частини одягу, якщо обрані сукні
     if (result.middle === 'Літні плаття' || result.middle === 'Демісезонні плаття') {
         result.buttom = null;
     }
 
-    let res = [];
-    for (let key in result) {
-        if (result[key] !== null) {
-            res.push(result[key]);
-        }
-    }
     return result;
 }

@@ -1,56 +1,51 @@
-export default function getCategoriesByTemperature(temperature: number) {
+export type Categories = {
+    hat: string[];
+    coat: string[];
+    middle: string[];
+    buttom: string[];
+    shoes: string[];
+};
+
+export default function getCategoriesByTemperature(temperature: number): Categories {
     if (temperature < 10) {
-        return [
-            { name: 'Головний убір', subcategories: ["Шапки", "Панамки", "Берети"] },
-            { name: 'Куртки', subcategories: ["Пуховики", "Пальта"] },
-            { name: 'Светри', subcategories: ["Піджаки", "Кардигани | Зіп-сверти", "Жилетки"] },
-            { name: 'Сорочки', subcategories: ["Сорочки"] },
-            { name: 'Футболки', subcategories: ["Світшоти"] },
-            { name: 'Плаття', subcategories: ["Водолазки"] },
-            { name: 'Штани', subcategories: ["Штани"] },
-            { name: 'Взуття', subcategories: ["Черевики"] }
-        ];
+        return {
+            hat: ["Шапки", "Панамки"],
+            coat: ["Пуховики", "Пальта"],
+            middle: ["Світшоти", "Худі"],
+            buttom: ["Штани"],
+            shoes: ["Черевики"]
+        };
     } else if (temperature < 15) {
-        return [
-            { name: 'Головний убір', subcategories: ["Кепки", "Панамки", "Берети"] },
-            { name: 'Куртки', subcategories: ["Джинсовки", "Вітровки"] },
-            { name: 'Светри', subcategories: ["Піджаки", "Кардигани | Зіп-сверти", "Жилетки"] },
-            { name: 'Сорочки', subcategories: ["Сорочки"] },
-            { name: 'Футболки', subcategories: ["Світшоти"] },
-            { name: 'Плаття', subcategories: ["Демісезонні плаття"] },
-            { name: 'Штани', subcategories: ["Штани"] },
-            { name: 'Взуття', subcategories: ["Кросівки/Кеди"] }
-        ];
+        return {
+            hat: ["Шапки", "Панамки", "Берети"],
+            coat: ["Тренчі", "Пальта", "Демісезонні куртки"],
+            middle: ["Світшоти", "Худі"],
+            buttom: ["Штани"],
+            shoes: ["Кросівки/Кеди"]
+        };
     } else if (temperature < 20) {
-        return [
-            { name: 'Головний убір', subcategories: ["Кепки", "Панамки", "Берети"] },
-            { name: 'Куртки', subcategories: ["Джинсовки", "Вітровки", "Тренчі"] },
-            { name: 'Светри', subcategories: ["Піджаки", "Кардигани | Зіп-сверти", "Жилетки"] },
-            { name: 'Сорочки', subcategories: ["Сорочки"] },
-            { name: 'Футболки', subcategories: ["Світшоти", "Топи", "Майки"] },
-            { name: 'Плаття', subcategories: ["Демісезонні плаття"] },
-            { name: 'Штани', subcategories: ["Штани"] },
-            { name: 'Взуття', subcategories: ["Кросівки/Кеди"] }
-        ];
+        return {
+            hat: ["Кепки", "Панамки", "Берети"],
+            coat: ["Джинсовки", "Вітровки", "Тренчі", "Піджаки", "Кардигани"],
+            middle: ["Сорочки", "Світшоти", "Худі", "Водолазки"],
+            buttom: ["Штани"],
+            shoes: ["Кросівки/Кеди"]
+        };
     } else if (temperature < 25) {
-        return [
-            { name: 'Головний убір', subcategories: ["Кепки", "Панамки"] },
-            { name: 'Куртки', subcategories: ["Вітровки", "Піджаки"] },
-            { name: 'Светри', subcategories: ["Кардигани | Зіп-сверти"] },
-            { name: 'Сорочки', subcategories: ["Сорочки"] },
-            { name: 'Футболки', subcategories: ["Футболки", "Топи", "Майки"] },
-            { name: 'Плаття', subcategories: ["Літні плаття", "Спідниці"] },
-            { name: 'Штани', subcategories: ["Шорти", "Штани"] },
-            { name: 'Взуття', subcategories: ["Кросівки/Кеди", "Босоніжки"] }
-        ];
+        return {
+            hat: ["Кепки", "Панамки"],
+            coat: ["Вітровки", "Піджаки", "Кардигани", "Сорочки"],
+            middle: ["Футболки", "Топи", "Майки", "Літні плаття"],
+            buttom: ["Шорти", "Штани", "Спідниці"],
+            shoes: ["Кросівки/Кеди", "Босоніжки", "Підбори"]
+        };
     } else {
-        return [
-            { hat: 'Головний убір', subcategories: ["Кепки", "Панамки", "Капелюхи"] },
-            { middle: 'Сорочки', subcategories: ["Сорочки"] },
-            { buttom: 'Футболки', subcategories: ["Футболки", "Топи", "Майки"] },
-            { shoes: 'Плаття', subcategories: ["Літні плаття", "Спідниці"] },
-            { coat: 'Штани', subcategories: ["Шорти", "Штани"] },
-            { name: 'Взуття', subcategories: ["Кросівки/Кеди", "Босоніжки"] }
-        ];
+        return {
+            hat: ["Кепки", "Панамки", "Капелюхи"],
+            middle: ["Сорочки"],
+            buttom: ["Футболки", "Топи", "Майки", "Літні плаття", "Спідниці"],
+            coat: ["Шорти", "Спідниці"],
+            shoes: ["Кросівки/Кеди", "Босоніжки"]
+        };
     }
 }

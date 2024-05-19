@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, Alert, TouchableOpacity } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -28,7 +28,6 @@ const CategoryDetailsScreen = ({ route }: { route: CategoryDetailsRouteProp }) =
 
 
     const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
-    const [files, setFiles] = useState<FileObject[]>([])
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -72,11 +71,48 @@ const CategoryDetailsScreen = ({ route }: { route: CategoryDetailsRouteProp }) =
 
 
     const renderItem = ({ item }: { item: any }) => (
-        <View style={styles.item}>
-            <Image source={{ uri: item.image }} style={styles.image} />
-        </View>
+        // <View style={styles.item}>
+            <TouchableOpacity onLongPress={() => handleLongPress(item)} style={styles.item}>
+                <Image source={{ uri: item.image }} style={styles.image} />
+            </TouchableOpacity>
+        // </View>
     );
+    const handleLongPress = (item: any) => {
+        Alert.alert(
+            'Підтвердіть видалення',
+            'Ви впевнені, що хочете видалити цей елемент одягу?',
+            [
+                {
+                    text: 'Скасувати',
+                    style: 'cancel',
+                },
+                {
+                    text: 'OK',
+                    onPress: () => deleteItem(item.id),
+                },
+            ],
+            { cancelable: false }
+        );
+    };
 
+    const deleteItem = async (itemId: number) => {
+        try {
+            const { error } = await supabase
+                .from('wardrobe')
+                .delete()
+                .eq('id', itemId);
+
+            if (error) {
+                console.error('Error deleting item:', error.message);
+            } else {
+                // Remove the item from the local state
+                setWardrobeItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
+            }
+        } catch (error) {
+            console.error('Error deleting item:', error);
+        }
+    };
+    
     return (
         <View style={styles.container}>
             {/* <Text style={styles.title}>{category ? category : 'Назва категорії не знайдена'}</Text> */}

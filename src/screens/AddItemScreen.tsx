@@ -178,7 +178,7 @@ const AddItemScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.selectImage}>
-        <Pressable onPress={pickImage}>
+        <Pressable onPress={uploadAndProcessImage}>
           <Image source={imageShown ? { uri: imageShown } : require('../assets/add-image.png')} style={styles.image} />
         </Pressable>
         <Pressable onPress={uploadAndProcessImage}>
@@ -238,6 +238,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     justifyContent: 'flex-start',
     alignItems: 'center',
+    backgroundColor: '#fff',
   },
   image: {
     width: 300,

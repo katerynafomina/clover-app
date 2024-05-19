@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { StyleSheet, View, Text} from 'react-native';
 import { CalendarList } from 'react-native-calendars';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
+import { useFocusEffect } from '@react-navigation/native';
 
 type MonthNames = {
   [key: string]: string;
@@ -35,7 +36,8 @@ export default function Calendar() {
     });
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(
+    useCallback(() => {
     const fetchOutfits = async () => {
       if (!session || !session.user) {
         return; // Return early if session or user is not available
@@ -68,31 +70,13 @@ export default function Calendar() {
     if (session && session.user) {
       fetchOutfits();
     }
-  }, [session]); // Fetch outfits when session or user changes
+  }, [session])
+); // Fetch outfits when session or user changes
 
   const handleDayPress = async (day: any) => {
-    try {
-      const { data: outfits, error } = await supabase
-        .from('outfits')
-        .select('id')
-        .eq('user_id', session?.user?.id)
-        .filter('created_at::date', 'eq', day.dateString);
-
-      if (error) {
-        console.error('Error fetching outfit ID calendar:', error.message);
-        return;
+      if (day.dateString in markedDates) {
+      navigation.navigate('DayOutfit', { day: day.dateString});
       }
-
-      if (outfits && outfits.length > 0) {
-        const outfitId = outfits[0].id;
-        navigation.navigate('DayOutfit', { day: day.dateString,outfitId: outfitId});
-      } else {
-        console.warn('No outfit found for the selected date.');
-        navigation.navigate('DayOutfit', { day: day.dateString, outfitId: null });
-      }
-    } catch (error) {
-      console.error('Error fetching outfit ID:', error);
-    }
   };
 
   return (

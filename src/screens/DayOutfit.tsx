@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, FlatList } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
+import {ActivityIndicator} from 'react-native';
 
 type WeatherData = {
   id: number;
@@ -21,37 +22,17 @@ type OutfitItem = {
 };
 
 const DayOutfit = ({ route }: { route: any }) => {
-    const { day } = route.params;
-    const {outfitId} = route.params;
+    const { day } = route.params; 
     const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
     const [outfitItems, setOutfitItems] = useState<OutfitItem[]>([]);
     const [session, setSession] = useState<Session | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
         });
     }, [])
-
-  const getOutfitIdsForDay = async (selectedDay: string) => {
-    try {
-         const { data: outfits, error } = await supabase
-        .from('outfits')
-        .select('id, weather_id')
-        .eq('user_id', session?.user?.id)
-         .filter('created_at::date', 'eq', selectedDay);
-        console.log(outfits);
-        console.log(outfitId);
-      if (error) {
-        console.error('Error fetching outfit ids:', error.message);
-        return [];
-        }
-        
-      return outfits || [];
-    } catch (error) {
-      console.error('Error fetching outfit ids:', error);
-      return [];
-    }
-  };
 
   const fetchWeatherData = async () => {
     try {
@@ -59,8 +40,7 @@ const DayOutfit = ({ route }: { route: any }) => {
         .from('weather')
         .select('*')
           .eq('date', day)
-        .order('created_at', { ascending: false })
-        .range(0, 1);
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching weather data:', error.message);
@@ -102,9 +82,6 @@ const DayOutfit = ({ route }: { route: any }) => {
         console.warn('No outfits found for the specified criteria.');
         return;
       }
-      else{
-        console.log(outfits[0].id);
-      }
       
       const outfitId = outfits[0].id;
       const { data: outfitItemsData, error: outfitItemsError } = await supabase
@@ -123,7 +100,6 @@ const DayOutfit = ({ route }: { route: any }) => {
       }
 
       const itemIds = outfitItemsData.map(item => item.item_id);
-      console.log(itemIds);
       const { data: wardrobeItems, error: wardrobeError } = await supabase
         .from('wardrobe')
         .select('*')
@@ -133,20 +109,21 @@ const DayOutfit = ({ route }: { route: any }) => {
         console.error('Error fetching wardrobe items:', wardrobeError.message);
         return;
       }
-      else{
-        console.log(wardrobeItems);
-      }
 
       setOutfitItems(wardrobeItems);
+      setIsLoading(false)
     } catch (error) {
       console.error('Error fetching outfit items:', error);
+      setIsLoading(false)
     }
   };
 
   useEffect(() => {
     fetchWeatherData();
-    fetchOutfitItems();
-  }, [day]);
+    if (session && weatherData) {
+      fetchOutfitItems();
+    }
+  }, [day, session, weatherData]);
 
   return (
     <View style={styles.container}>
@@ -175,7 +152,9 @@ const DayOutfit = ({ route }: { route: any }) => {
       </View>
 
       <Text style={styles.title}>Образ</Text>
-      {outfitItems.length > 0 ? (
+      {isLoading? (
+        <ActivityIndicator size="large" color="#0000ff" />
+      ) : (
         outfitItems.map((item) => (
           <View key={item.id}>
             {/* Display outfit item details */}
@@ -185,8 +164,6 @@ const DayOutfit = ({ route }: { route: any }) => {
             {/* Add more outfit item details here */}
           </View>
         ))
-      ) : (
-        <Text>Loading outfit...</Text>
 
       )}
     </View>
@@ -197,7 +174,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
   },
   title: {
     fontSize: 24,
