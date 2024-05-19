@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, FlatList } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import {ActivityIndicator} from 'react-native';
+import GetDate from '../components/date';
 
 type WeatherData = {
   id: number;
@@ -13,6 +14,7 @@ type WeatherData = {
   humidity: number;
   wind: number;
   weather_icon: string;
+  city: string;
 };
 
 type OutfitItem = {
@@ -127,7 +129,10 @@ const DayOutfit = ({ route }: { route: any }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Погода на {day}</Text>
+      <Text style={styles.title}>{GetDate(day)}</Text>
+      {weatherData && (
+          <Text style={[styles.title, {fontSize: 18}]}>{weatherData.city}</Text>
+      )}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, marginTop: 10 }}>
         <View style={{}}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }} >
