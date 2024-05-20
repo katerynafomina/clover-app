@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import {ActivityIndicator} from 'react-native';
@@ -104,15 +104,27 @@ const DayOutfit = ({ route }: { route: any }) => {
       const itemIds = outfitItemsData.map(item => item.item_id);
       const { data: wardrobeItems, error: wardrobeError } = await supabase
         .from('wardrobe')
-        .select('*')
+        .select('id, photo_url, category, user_id')
         .in('id', itemIds);
+      if (wardrobeItems) {
+        const itemsWithUrls = await Promise.all(
+          wardrobeItems.map(async (item) => {
+            const { data } = await supabase.storage
+              .from('clothes')
+              .getPublicUrl(item.photo_url);
+
+            return { ...item, image: data?.publicUrl };
+          })
+        );
+          setOutfitItems(itemsWithUrls);
+      }
 
       if (wardrobeError) {
         console.error('Error fetching wardrobe items:', wardrobeError.message);
         return;
       }
 
-      setOutfitItems(wardrobeItems);
+      
       setIsLoading(false)
     } catch (error) {
       console.error('Error fetching outfit items:', error);
@@ -126,6 +138,14 @@ const DayOutfit = ({ route }: { route: any }) => {
       fetchOutfitItems();
     }
   }, [day, session, weatherData]);
+
+  const renderItem = ({ item }: { item: any }) => (
+        // <View style={styles.item}>
+            <TouchableOpacity  style={styles.item}>
+                <Image source={{ uri: item.image }} style={styles.image} />
+            </TouchableOpacity>
+        // </View>
+    );
 
   return (
     <View style={styles.container}>
@@ -160,15 +180,15 @@ const DayOutfit = ({ route }: { route: any }) => {
       {isLoading? (
         <ActivityIndicator size="large" color="#0000ff" />
       ) : (
-        outfitItems.map((item) => (
-          <View key={item.id}>
-            {/* Display outfit item details */}
-            <Image source={{ uri: item.photo_url }} style={styles.image} />
-            <Text>Outfit Item ID: {item.id}</Text>
-            <Text>Category: {item.category}</Text>
-            {/* Add more outfit item details here */}
-          </View>
-        ))
+          
+        <FlatList
+                        style={{ width: '100%' }}
+                        data={outfitItems}
+                        renderItem={renderItem}
+                        keyExtractor={(item) => item.id.toString()}
+                        numColumns={2}
+                        contentContainerStyle={styles.listContainer}
+                    />
 
       )}
     </View>
@@ -187,12 +207,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
   },
-  image: {
-    height: 100,
-    width: 100,
-    borderRadius: 10,
-    resizeMode: 'contain',
-},
+  listContainer: {
+        paddingHorizontal: 10,
+    },
+    item: {
+        flex: 1,
+        margin: 5,
+        borderRadius: 10,
+        overflow: 'hidden',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    image: {
+        width: '100%',
+        height: 300, // Висота зображення
+        borderRadius: 10,
+        resizeMode: 'contain', // Адаптація зображення
+    },
 });
 
 export default DayOutfit;

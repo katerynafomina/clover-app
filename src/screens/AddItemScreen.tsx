@@ -33,7 +33,6 @@ const AddItemScreen = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [4, 3],
         quality: 1,
       });
 
@@ -57,11 +56,11 @@ const AddItemScreen = () => {
         throw new Error('Failed to process image background.');
       }
       console.log('Processed image path:', processedImagePath);
-
+      setImageShown(processedImagePath);
       const base64Image = await FileSystem.readAsStringAsync(processedImagePath, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      console.log('Base64 image:', base64Image);
+      console.log('Base64 image:', processImage);
 
       const arrayBuffer = await fetch(processedImagePath).then((res) => res.arrayBuffer());
 
@@ -79,7 +78,6 @@ const AddItemScreen = () => {
 
       setImageUrl(processedImageUrl);
       Alert.alert('Image uploaded and processed successfully!');
-      setImageShown(processedImageUrl);
 
     } catch (error) {
       console.error('Upload and process image error:', error);
@@ -96,7 +94,6 @@ const AddItemScreen = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [4, 3],
         quality: 1,
       });
 
@@ -167,7 +164,9 @@ const AddItemScreen = () => {
       if (error) {
         throw error;
       }
-
+      setImageShown('');
+      setSelectedCategory(null);
+      setImageUrl('');
       Alert.alert('Item added to wardrobe successfully!');
     } catch (error) {
       console.error('Add item error:', error);
