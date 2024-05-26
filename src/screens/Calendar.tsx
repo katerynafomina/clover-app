@@ -107,7 +107,7 @@ export default function Calendar() {
 
         markedDates={markedDates}
 
-        renderHeader={(date) => {
+        renderHeader={(date:any) => {
           const monthYear = `${monthNames[date.toString('MMMM')]} ${date.toString('yyyy')}`;
 
           return (

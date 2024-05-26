@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import {ActivityIndicator} from 'react-native';
 import GetDate from '../components/date';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
+import Button from '../components/Button';
 
 type WeatherData = {
   id: number;
@@ -25,10 +27,12 @@ type OutfitItem = {
 
 const DayOutfit = ({ route }: { route: any }) => {
     const { day } = route.params; 
-    const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [outfitId, setOutfitId] = useState<number | any>(null);
     const [outfitItems, setOutfitItems] = useState<OutfitItem[]>([]);
     const [session, setSession] = useState<Session | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+    const navigation = useNavigation() as NavigationProp<any>;
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -36,13 +40,61 @@ const DayOutfit = ({ route }: { route: any }) => {
         });
     }, [])
 
-  const fetchWeatherData = async () => {
+  const deleteOutfit = async () => {
     try {
+
+    const { error:outfit_error } = await supabase
+      .from('outfit_item')
+      .delete()
+        .eq('outfit_id', outfitId);
+      
+      if (outfit_error) {
+        console.error('Error deleting outfit items:', outfit_error.message);
+        return;
+      }    
+          
+
+      const { error } = await supabase
+        .from('outfits')
+        .delete()
+        .eq('id', outfitId); 
+      navigation.goBack();
+      if (error) {
+        console.error('Error deleting outfit:', error.message);
+        return;
+      }
+
+    }catch (error) {
+      console.error('Error deleting outfit:', error);
+    }
+  }
+
+  const fetchOutfitItems = async () => {
+    if (!session) {
+      return;
+    }
+
+    try {
+      const { data: outfits, error: outfitsError } = await supabase
+        .from('outfits')
+        .select('id, weather_id')
+        .eq('user_id', session.user.id)
+        .eq('date', day);
+
+      if (outfitsError) {
+        console.error('Error fetching outfit ids:', outfitsError.message);
+        return;
+      }
+      
+      if (outfits.length === 0) {
+        console.warn('No outfits found for the specified criteria.');
+        return;
+      }
+      const weatherId = outfits[0].weather_id;
       const { data: weatherData, error, count } = await supabase
         .from('weather')
         .select('*')
-          .eq('date', day)
-        .order('created_at', { ascending: false });
+          .eq('id', weatherId)
 
       if (error) {
         console.error('Error fetching weather data:', error.message);
@@ -58,34 +110,9 @@ const DayOutfit = ({ route }: { route: any }) => {
         const latestWeather = weatherData[0]; // Get the latest weather data
         setWeatherData(latestWeather);
       }
-    } catch (error) {
-      console.error('Error fetching weather data:', error);
-    }
-  };
-
-  const fetchOutfitItems = async () => {
-    if (!session || !weatherData) {
-      return;
-    }
-
-    try {
-      const { data: outfits, error: outfitsError } = await supabase
-        .from('outfits')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .eq('weather_id', weatherData.id);
-
-      if (outfitsError) {
-        console.error('Error fetching outfit ids:', outfitsError.message);
-        return;
-      }
-      
-      if (outfits.length === 0) {
-        console.warn('No outfits found for the specified criteria.');
-        return;
-      }
       
       const outfitId = outfits[0].id;
+      setOutfitId(outfitId);
       const { data: outfitItemsData, error: outfitItemsError } = await supabase
         .from('outfit_item')
         .select('item_id')
@@ -133,8 +160,7 @@ const DayOutfit = ({ route }: { route: any }) => {
   };
 
   useEffect(() => {
-    fetchWeatherData();
-    if (session && weatherData) {
+    if (session ) {
       fetchOutfitItems();
     }
   }, [day, session, weatherData]);
@@ -189,8 +215,10 @@ const DayOutfit = ({ route }: { route: any }) => {
                         numColumns={2}
                         contentContainerStyle={styles.listContainer}
                     />
-
+         
       )}
+       <Button text="Видалити образ" onPress={deleteOutfit} />
+      
     </View>
   );
 };

@@ -32,7 +32,7 @@ export default function Auth() {
     if (error) {
       Alert.alert(error.message)
     } else {
-      navigation.navigate('Account') // Використання navigation з явно вказаним типом
+      navigation.navigate('Home') // Використання navigation з явно вказаним типом
     }
 
     setLoading(false)
