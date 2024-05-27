@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { Alert, StyleSheet, View, AppState } from 'react-native'
+import { Alert, StyleSheet, View, AppState, TextInput, Text } from 'react-native'
 import { supabase } from '../lib/supabase'
-import { Button, Input } from 'react-native-elements'
 import { useNavigation, NavigationProp } from '@react-navigation/native'; // Імпорт NavigationProp з '@react-navigation/native'
+import Button from '../components/Button';
 
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
@@ -20,7 +20,7 @@ export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const navigation = useNavigation() as NavigationProp<any>; // Явне вказання типу для navigation
+  const navigation = useNavigation() as NavigationProp<any>; 
 
   async function signInWithEmail() {
     setLoading(true)
@@ -28,36 +28,33 @@ export default function Auth() {
       email: email,
       password: password,
     })
-
     if (error) {
       Alert.alert(error.message)
     } else {
-      navigation.navigate('Home') // Використання navigation з явно вказаним типом
+      navigation.navigate('Home') 
     }
-
     setLoading(false)
   }
 
   async function signUpWithEmail() {
-    navigation.navigate('Register') // Використання navigation з явно вказаним типом
+    navigation.navigate('Register') 
   }
 
   return (
     <View style={styles.container}>
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input
-          label="Електронна пошта"
-          leftIcon={{ type: 'font-awesome', name: 'envelope' }}
+      <View style={ styles.mb_ft} />
+       <Text style={{marginLeft:16}}>Пошта</Text>
+      <View style={[styles.textInputContainer, styles.mb_tw]}>
+        <TextInput
           onChangeText={(text) => setEmail(text)}
           value={email}
           placeholder="email@address.com"
           autoCapitalize={'none'}
         />
       </View>
-      <View style={styles.verticallySpaced}>
-        <Input
-          label="Пароль"
-          leftIcon={{ type: 'font-awesome', name: 'lock' }}
+      <Text style={{marginLeft:16}}>Пароль</Text>
+     <View style={[styles.textInputContainer, styles.mb_ft]}>
+        <TextInput
           onChangeText={(text) => setPassword(text)}
           value={password}
           secureTextEntry={true}
@@ -65,17 +62,16 @@ export default function Auth() {
           autoCapitalize={'none'}
         />
       </View>
-      <View style={[styles.verticallySpaced, styles.mt20]}>
+
+      <View style={styles.mb_tw}>
         <Button
-          title="Вхід"
-          disabled={loading}
+          text="Вхід"
           onPress={() => signInWithEmail() as any} // Явне вказання типу для onPress
         />
       </View>
-      <View style={styles.verticallySpaced}>
+      <View >
         <Button
-          title="Зареєструватись"
-          disabled={loading}
+          text="Зареєструватись"
           onPress={() => signUpWithEmail() as any} // Явне вказання типу для onPress
         />
       </View>
@@ -86,14 +82,22 @@ export default function Auth() {
 const styles = StyleSheet.create({
   container: {
     marginTop: 40,
-    padding: 12,
+    padding: 16,
   },
-  verticallySpaced: {
-    paddingTop: 4,
-    paddingBottom: 4,
+  textInputContainer: {
     alignSelf: 'stretch',
+    borderWidth: 1,
+    borderColor: 'black',
+    backgroundColor: 'transpered',
+    paddingVertical: 10,
+    paddingHorizontal:16,
+    marginVertical: 10,
+    borderRadius:30,
   },
-  mt20: {
-    marginTop: 20,
+    mb_ft: {
+    marginBottom:50
   },
+  mb_tw: {
+    marginBottom:20
+  }
 })

@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { Alert, StyleSheet, View, AppState } from 'react-native'
+import { Alert, StyleSheet, View, AppState, TextInput, Text } from 'react-native'
 import { supabase } from '../lib/supabase'
-import { Button, Input } from 'react-native-elements'
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native'; // Імпорт NavigationProp з '@react-navigation/native'
+import Button from '../components/Button';
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
 // `onAuthStateChange` events with the `TOKEN_REFRESHED` or `SIGNED_OUT` event
@@ -42,41 +42,37 @@ export default function Register() {
       console.log(error)
     }
     
-    
-    
     setLoading(false)
     navigation.navigate('Auth')
   }
 
   return (
     <View style={styles.container}>
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input
-          label="Електронна пошта"
-          leftIcon={{ type: 'font-awesome', name: 'envelope' }}
+      <View style={ styles.mb_ft} />
+       <Text style={{marginLeft:16}}>Пошта</Text>
+      <View style={[styles.textInputContainer, styles.mb_tw]}>
+        <TextInput
           onChangeText={(text) => setEmail(text)}
           value={email}
           placeholder="email@address.com"
           autoCapitalize={'none'}
         />
       </View>
-      <View style={styles.verticallySpaced}>
-        <Input
-          label="Пароль"
-          leftIcon={{ type: 'font-awesome', name: 'lock' }}
+      <Text style={{marginLeft:16}}>Пароль</Text>
+     <View style={[styles.textInputContainer, styles.mb_ft]}>
+        <TextInput
           onChangeText={(text) => setPassword(text)}
           value={password}
           secureTextEntry={true}
           placeholder="пароль"
           autoCapitalize={'none'}
-        /> 
+        />
       </View>
-      
-      <View style={styles.verticallySpaced}>
-        <Button title="Зареєструватись" disabled={loading} onPress={() => signUpWithEmail()} />
+      <View style={styles.mb_tw}>
+        <Button text="Зареєструватись" disabled={loading} onPress={() => signUpWithEmail()} />
         </View>
-        <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Button title="Назад" disabled={loading} onPress={() => signInWithEmail()} />
+        <View >
+        <Button text="Назад" disabled={loading} onPress={() => signInWithEmail()} />
       </View>
     </View>
   )
@@ -86,13 +82,22 @@ const styles = StyleSheet.create({
   container: {
     marginTop: 40,
     padding: 12,
+   
   },
-  verticallySpaced: {
-    paddingTop: 4,
-    paddingBottom: 4,
+  textInputContainer: {
     alignSelf: 'stretch',
+    borderWidth: 1,
+    borderColor: 'black',
+    backgroundColor: 'transpered',
+    paddingVertical: 10,
+    paddingHorizontal:16,
+    marginVertical: 10,
+    borderRadius:30,
   },
-  mt20: {
-    marginTop: 20,
+  mb_tw: {
+    marginBottom:20
   },
+   mb_ft: {
+    marginBottom:50
+  }
 })

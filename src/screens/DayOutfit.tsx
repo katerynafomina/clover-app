@@ -52,8 +52,6 @@ const DayOutfit = ({ route }: { route: any }) => {
         console.error('Error deleting outfit items:', outfit_error.message);
         return;
       }    
-          
-
       const { error } = await supabase
         .from('outfits')
         .delete()

@@ -173,8 +173,28 @@ const [session, setSession] = useState<Session | null>(null);
       <Stack.Navigator>
         {!session ? (
           <>
-            <Stack.Screen name="Auth" component={Auth} options={{headerTitle: 'Вхід',}} />
-            <Stack.Screen name="Register" component={Register} options={{headerTitle: 'Реєстрація',}}/>
+            <Stack.Screen name="Auth"
+              component={Auth}
+              options={{ headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+                />),
+                headerShadowVisible:false
+              }} />
+            <Stack.Screen
+              name="Register"
+              component={Register}
+              options={{
+                 headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+                  />),
+                  headerShadowVisible:false
+              }} />
           </>
         ) : (
           <Stack.Screen
