@@ -178,23 +178,23 @@ const AddItemScreen = () => {
     <View style={styles.container}>
       <View style={styles.selectImage}>
         <Pressable onPress={uploadAndProcessImage}>
-          <Image source={imageShown ? { uri: imageShown } : require('../assets/add-image.png')} style={styles.image} />
+          <Image source={imageShown ? { uri: imageShown } : require('../assets/add-image.png')} style={imageShown ? styles.image : [styles.image, { height: 150, width: 100, marginTop: 100 }]} />
         </Pressable>
         <Pressable onPress={uploadAndProcessImage}>
           <Text style={styles.imageText}>Обрати фото</Text>
         </Pressable>
       </View>
 
-      <Pressable onPress={() => setShowPicker(!showPicker)}>
+      <Pressable style={styles.categoryButton} onPress={() => setShowPicker(!showPicker)}>
         <Text style={styles.selectText}>
           {selectedCategory ? selectedCategory.name : 'Обрати категорію'}
         </Text>
       </Pressable>
 
       {showPicker && (
-        <ScrollView>
+        <ScrollView style={styles.scrollView}>
           {categories.map((category) => (
-            <Pressable key={category.id} onPress={() => handleCategoryChange(category)}>
+            <Pressable key={category.id} style={styles.card} onPress={() => handleCategoryChange(category)}>
               <Text style={category.id === selectedCategory?.id ? styles.selectedCategory : styles.categories}>
                 {category.name}
               </Text>
@@ -204,7 +204,7 @@ const AddItemScreen = () => {
       )}
 
       {selectedCategory && (
-        <Pressable onPress={() => setSubShowPicker(!showSubPicker)}>
+        <Pressable style={styles.categoryButton} onPress={() => setSubShowPicker(!showSubPicker)}>
           <Text style={styles.selectText}>
             {selectedSubcategory ? selectedSubcategory : 'Обрати підкатегорію'}
           </Text>
@@ -212,9 +212,9 @@ const AddItemScreen = () => {
       )}
 
       {showSubPicker && selectedCategory && (
-        <ScrollView>
+        <ScrollView style={styles.scrollView}>
           {selectedCategory.subcategories.map((subcategory) => (
-            <Pressable key={subcategory} onPress={() => handleSubcategoryChange(subcategory)}>
+            <Pressable key={subcategory} style={styles.card} onPress={() => handleSubcategoryChange(subcategory)}>
               <Text style={subcategory === selectedSubcategory ? styles.selectedCategory : styles.categories}>
                 {subcategory}
               </Text>
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    paddingTop: 0,
+    paddingTop: 40,
     justifyContent: 'flex-start',
     alignItems: 'center',
     backgroundColor: '#fff',
@@ -243,48 +243,62 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     resizeMode: 'contain',
+    marginBottom: 20,
   },
   imageText: {
     textAlign: 'center',
-    textTransform: 'uppercase',
-    fontSize: 18,
-    fontWeight: '500',
-    borderWidth: 1,
-    borderColor: 'black',
-    borderRadius: 25,
-    padding: 13,
+    fontSize: 16,
+    color: 'black',
+    marginVertical: 10,
+    textTransform: 'lowercase',
+    borderBottomWidth:0.5,
+    
   },
   selectText: {
-    width: 250,
-    marginTop: 20,
-    paddingBottom: 10,
-    fontSize: 20,
+    fontSize: 18,
     color: 'black',
-    borderBottomWidth: 1,
-    borderBottomColor: 'black',
     textAlign: 'center',
+  },
+  categoryButton: {
+    width: '100%',
+    paddingVertical: 15,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 50,
+    marginVertical: 10,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    width: '100%',
+    maxHeight: 200,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  card: {
+    width: '100%',
+    padding: 15,
+    marginVertical: 5,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 50,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categories: {
-    width: 250,
-    paddingBottom: 10,
-    marginTop: 10,
-    fontSize: 18,
-    textAlign: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'black',
+    fontSize: 16,
+    color: 'black',
   },
   selectedCategory: {
-    width: 250,
-    paddingBottom: 10,
-    marginTop: 10,
-    fontSize: 18,
-    textAlign: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'black',
+    fontSize: 16,
+    color: 'trancparent',
     fontWeight: 'bold',
   },
   selectImage: {
     alignItems: 'center',
+    marginVertical: 20,
   },
 });
 
