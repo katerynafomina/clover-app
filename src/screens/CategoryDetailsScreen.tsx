@@ -1,40 +1,39 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, Alert, TouchableOpacity } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { FileObject } from '@supabase/storage-js'
+import { RootStackParamList } from '../../App';
 
-type CategoryDetailsScreenParams = {
-    CategoryName: {
-        category: string;
-    };
+// Define props for navigation
+type CategoryDetailsScreenRouteProp = RouteProp<RootStackParamList, 'CategoryDetailsScreen'>;
+type CategoryDetailsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CategoryDetailsScreen'>;
+
+type Props = {
+    route: CategoryDetailsScreenRouteProp;
+    navigation: CategoryDetailsScreenNavigationProp;
 };
-type CategoryDetailsRouteProp = RouteProp<CategoryDetailsScreenParams, 'CategoryName'>;
 
-const CategoryDetailsScreen = ({ route }: { route: CategoryDetailsRouteProp }) => {
+const CategoryDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
     const [session, setSession] = useState<Session | null>(null);
+    const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const { category } = route.params;
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session)
-        })
+            setSession(session);
+        });
 
         supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session)
-        })
-    }, [])
-
-
-    const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+            setSession(session);
+        });
+    }, []);
 
     useEffect(() => {
         const fetchItems = async () => {
-            if (!session || !session.user || !category) {
-                return; // Exit early if session or category is not available
-            }
+            if (!session || !session.user || !category) return;
 
             const userId = session.user.id;
             try {
@@ -47,89 +46,43 @@ const CategoryDetailsScreen = ({ route }: { route: CategoryDetailsRouteProp }) =
                 if (error) {
                     console.error('Error fetching wardrobe items:', error.message);
                 } else {
-                    // Update wardrobe items with public URLs for images
-                    const itemsWithUrls = await Promise.all(
-                        wardrobe.map(async (item) => {
-                            const { data } = await supabase.storage
-                                .from('clothes')
-                                .getPublicUrl(item.photo_url);
-
-                            return { ...item, image: data?.publicUrl };
-                        })
-                    );
+                    const itemsWithUrls = wardrobe.map((item) => ({
+                        ...item,
+                        image: supabase.storage.from('clothes').getPublicUrl(item.photo_url).data.publicUrl,
+                    }));
 
                     setWardrobeItems(itemsWithUrls);
-                    setLoading(false);
                 }
             } catch (error) {
                 console.error('Error fetching wardrobe items:', error);
+            } finally {
+                setLoading(false);
             }
         };
 
         fetchItems();
     }, [category, session]);
 
-
-    const renderItem = ({ item }: { item: any }) => (
-        // <View style={styles.item}>
-            <TouchableOpacity onLongPress={() => handleLongPress(item)} style={styles.item}>
-                <Image source={{ uri: item.image }} style={styles.image} />
-            </TouchableOpacity>
-        // </View>
-    );
-    const handleLongPress = (item: any) => {
-        Alert.alert(
-            'Підтвердіть видалення',
-            'Ви впевнені, що хочете видалити цей елемент одягу?',
-            [
-                {
-                    text: 'Скасувати',
-                    style: 'cancel',
-                },
-                {
-                    text: 'OK',
-                    onPress: () => deleteItem(item.id),
-                },
-            ],
-            { cancelable: false }
-        );
-    };
-
-    const deleteItem = async (itemId: number) => {
-        try {
-            const { error } = await supabase
-                .from('wardrobe')
-                .delete()
-                .eq('id', itemId);
-
-            if (error) {
-                console.error('Error deleting item:', error.message);
-            } else {
-                // Remove the item from the local state
-                setWardrobeItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
-            }
-        } catch (error) {
-            console.error('Error deleting item:', error);
-        }
-    };
-    
     return (
         <View style={styles.container}>
-            {/* <Text style={styles.title}>{category ? category : 'Назва категорії не знайдена'}</Text> */}
-                {loading ? (
-                    <Text>Loading...</Text>
-                ) : wardrobeItems.length === 0 ? (
-                    <Text>Немає одягу даної категорії: {category}</Text>
-                ) : (
-                    <FlatList
-                        style={{ width: '100%' }}
-                        data={wardrobeItems}
-                        renderItem={renderItem}
-                        keyExtractor={(item) => item.id.toString()}
-                        numColumns={2}
-                        contentContainerStyle={styles.listContainer}
-                    />
-                )}
+            {loading ? (
+                <Text>Loading...</Text>
+            ) : wardrobeItems.length === 0 ? (
+                <Text>Немає одягу даної категорії: {category}</Text>
+            ) : (
+                <FlatList
+                    style={{ width: '100%' }}
+                    data={wardrobeItems}
+                    renderItem={({ item }) => (
+                        <TouchableOpacity style={styles.item}>
+                            <Image source={{ uri: item.image }} style={styles.image} />
+                        </TouchableOpacity>
+                    )}
+                    keyExtractor={(item) => item.id.toString()}
+                    numColumns={2}
+                    contentContainerStyle={styles.listContainer}
+                />
+            )}
         </View>
     );
 };
@@ -140,11 +93,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#fff',
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 20,
     },
     listContainer: {
         paddingHorizontal: 10,
@@ -159,9 +107,9 @@ const styles = StyleSheet.create({
     },
     image: {
         width: '100%',
-        height: 300, // Висота зображення
+        height: 300,
         borderRadius: 10,
-        resizeMode: 'contain', // Адаптація зображення
+        resizeMode: 'contain',
     },
 });
 

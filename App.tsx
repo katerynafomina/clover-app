@@ -16,7 +16,19 @@ import AddItemScreen from './src/screens/AddItemScreen';
 import CategoryDetailsScreen from './src/screens/CategoryDetailsScreen';
 import DayOutfit from './src/screens/DayOutfit';
 
-const Stack = createStackNavigator();
+export type RootStackParamList = {
+  HomeStack: undefined;
+  ClosetCategories: undefined;
+  AddItemScreen: undefined;
+  CategoryDetailsScreen: { category: string };
+  Calendar: undefined;
+  DayOutfit: undefined;
+  Auth: undefined;
+  Register: undefined;
+};
+
+
+const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
 const ClosetStack = () => {
@@ -173,7 +185,8 @@ const [session, setSession] = useState<Session | null>(null);
       <Stack.Navigator>
         {!session ? (
           <>
-            <Stack.Screen name="Auth"
+            <Stack.Screen 
+              name="Auth"
               component={Auth}
               options={{ headerTitle: () => (
             <Image
