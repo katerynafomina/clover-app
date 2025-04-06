@@ -18,20 +18,20 @@ const AddItemScreen = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
+useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+  });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-  }, []);
+  supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+  });
+}, []);
 
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: (ImagePicker as any).MediaTypeOptions.Images, // Обхід TypeScript помилки
         allowsEditing: true,
         quality: 1,
       });
@@ -87,51 +87,51 @@ const AddItemScreen = () => {
     }
   };
 
-  const uploadAndProcessImage = async () => {
-    try {
-      setUploading(true);
+ const uploadAndProcessImage = async () => {
+  try {
+    setUploading(true);
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 1,
-      });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes:  ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
 
-      if (result.canceled) {
-        console.log('User cancelled image picker.');
-        return;
-      }
-
-      const { uri } = result.assets[0];
-      const image = result.assets[0];
-      console.log('Image URI:', uri);
-      const response = await fetch(uri);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status} - ${response.statusText}`);
-      }
-      const arrayBuffer = await fetch(image.uri).then((res) => res.arrayBuffer());
-
-      const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg';
-      const path = `${Date.now()}.${fileExt}`;
-      const { data, error: uploadError } = await supabase.storage
-        .from('clothes')
-        .upload(path, arrayBuffer, {
-          contentType: image.mimeType ?? 'image/jpeg',
-        });
-      console.log('Image uploaded:', data?.path);
-
-      if (uploadError) {
-        throw uploadError;
-      }
-      setImageUrl(data?.path);
-      console.log('Image URL:', imageUrl);
-      processImage(data?.path);
-
-    } catch (error) {
-      console.error('Image upload error:', error);
-      Alert.alert('Failed to upload image. Please try again.');
+    if (result.canceled) {
+      console.log('User cancelled image picker.');
+      return;
     }
-  };
+
+    const { uri } = result.assets[0];
+    console.log('Image URI:', uri);
+
+    const response = await fetch(uri);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const fileExt = uri.split('.').pop()?.toLowerCase() ?? 'jpeg';
+    const filePath = `images/${Date.now()}.${fileExt}`;
+
+    const { data, error: uploadError } = await supabase.storage
+      .from('clothes')
+      .upload(filePath, arrayBuffer, { contentType: `image/${fileExt}` });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    console.log('Image uploaded:', data?.path);
+    setImageUrl(data?.path);
+  } catch (error) {
+    console.error('Image upload error:', error);
+    Alert.alert('Failed to upload image. Please try again.');
+  } finally {
+    setUploading(false);
+  }
+};
+
 
   const handleCategoryChange = (category: Category) => {
     setSelectedCategory(category);
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   categoryButton: {
     width: '100%',
-    paddingVertical: 15,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 50,

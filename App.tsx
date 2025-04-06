@@ -22,9 +22,10 @@ export type RootStackParamList = {
   AddItemScreen: undefined;
   CategoryDetailsScreen: { category: string };
   Calendar: undefined;
-  DayOutfit: undefined;
+  DayOutfit: { date: string }; // Додайте параметри, які ви передаєте
   Auth: undefined;
   Register: undefined;
+  Home: undefined; // Додайте це
 };
 
 
@@ -115,13 +116,14 @@ const CalendarStack = () => {
 const HomeTabs = () => {
   return (
     <Tab.Navigator>
-      <Tab.Screen name="Home"
+      <Tab.Screen 
+        name="Home" 
         component={Home}
         options={{
           headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />),
           headerRight: () => (

@@ -176,6 +176,8 @@ export default function Home() {
             if (existingOutfitsError) {
                 throw existingOutfitsError;
             }
+
+            console.log('Existing outfits:', existingOutfits);
     
             if (existingOutfits.weather) {
                 // If an outfit for the current date already exists, show an alert
