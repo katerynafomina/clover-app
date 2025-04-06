@@ -15,6 +15,9 @@ import Calendar from './src/screens/Calendar';
 import AddItemScreen from './src/screens/AddItemScreen';
 import CategoryDetailsScreen from './src/screens/CategoryDetailsScreen';
 import DayOutfit from './src/screens/DayOutfit';
+import AllPosts from './src/screens/Community/AllPosts';
+import MyPosts from './src/screens/Community/MyPosts';
+import AddPost from './src/screens/Community/AddPost';
 
 export type RootStackParamList = {
   HomeStack: undefined;
@@ -63,7 +66,7 @@ const ClosetStack = () => {
       <Stack.Screen
         name="CategoryDetailsScreen"
         component={CategoryDetailsScreen}
-        options={({ route }) => ({
+        options={({ route }: { route: { params: { category: string } } }) => ({
           headerTitle: () => (
             <Image
               style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
@@ -112,6 +115,61 @@ const CalendarStack = () => {
 
 }
 
+const CommunityStack = () => {
+  return (
+    <Stack.Navigator>
+      {/* 1. Сторінка з постами всіх користувачів */}
+      <Stack.Screen
+        name="AllPosts"
+        component={AllPosts}
+        options={{
+          headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />
+          ),
+          headerShown: true,
+        }}
+      />
+      
+      {/* 2. Сторінка з моїми постами */}
+      <Stack.Screen
+        name="MyPosts"
+        component={MyPosts}
+        options={{
+          headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />
+          ),
+          headerShown: true,
+        }}
+      />
+      
+      {/* 3. Сторінка для додавання посту */}
+      <Stack.Screen
+        name="AddPost"
+        component={AddPost}
+        options={{
+          headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
+              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              resizeMode="contain"
+            />
+          ),
+          headerShown: true,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+
 const HomeTabs = () => {
   return (
     <Tab.Navigator>
@@ -152,6 +210,15 @@ const HomeTabs = () => {
       />
       <Tab.Screen name="Outfits"
         component={CalendarStack}
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <AntDesign name="calendar" size={25} color={color} />
+          ),
+        }}
+      />
+       <Tab.Screen name="Community"
+        component={CommunityStack}
         options={{
           headerShown: false,
           tabBarIcon: ({ color }) => (
