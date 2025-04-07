@@ -92,7 +92,7 @@ useEffect(() => {
     setUploading(true);
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes:  ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 1,
     });
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    paddingTop: 40,
+    paddingTop: 20,
     justifyContent: 'flex-start',
     alignItems: 'center',
     backgroundColor: '#fff',
@@ -264,11 +264,11 @@ const styles = StyleSheet.create({
   },
   categoryButton: {
     width: '100%',
-    paddingVertical: 10,
+    paddingVertical: 5,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 50,
-    marginVertical: 10,
+    marginVertical: 5,
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    padding: 15,
+    padding: 5,
     marginVertical: 5,
     borderWidth: 1,
     borderColor: '#ddd',

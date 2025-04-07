@@ -53,6 +53,9 @@ export default function Home() {
                     speed: data1.wind.speed,
                     forecast: data2.list.slice(0, 5)
                 });
+                console.log('Погода:', data1);
+                console.log('Прогноз:', data2.list.slice(0, 5));
+                console.log("Weather data:", weatherData.temp);
             } catch (error) {
                 console.warn('Помилка при отриманні погодових даних:', error);
             }
@@ -118,7 +121,6 @@ export default function Home() {
             console.log(filteredCategories);
 
             if (filteredCategories && typeof filteredCategories === 'object') {
-                // Filter out null values from filteredCategories
                 const validFilteredCategories = Object.values(filteredCategories).filter((category) => category !== null);
                 console.log(validFilteredCategories);
     
@@ -163,45 +165,42 @@ export default function Home() {
 
     const insertWeather = async () => {
         try {
-            // Get the current date in YYYY-MM-DD format
-            const currentDateStr = new Date().toISOString().split('T')[0];
-    
-            // Check if an outfit for the current date already exists for the user
-            const { data: existingOutfits, error: existingOutfitsError } = await supabase
-                .from('outfits')
-                .select('id, weather:weather_id(*)')
-                .eq('user_id', session?.user.id)
-                .eq('weather.date', currentDateStr);
-    
-            if (existingOutfitsError) {
-                throw existingOutfitsError;
-            }
+        // Get the current date in ISO format
+        const currentDate = new Date().toISOString();
 
-            console.log('Existing outfits:', existingOutfits);
-    
-            if (existingOutfits && existingOutfits.length > 0) {
-                // If an outfit for the current date already exists, show an alert
-                Alert.alert('Увага', 'Обрання для цієї дати вже існує.');
-                console.log('Outfit for the current date already exists:', existingOutfits, currentDateStr);
-                return;
-            }
-    
-            // Insert new weather data
-            const { data: weather, error: WeatherError } = await supabase
-                .from('weather')
-                .insert([
-                    {
-                        min_tempurature: weatherData.temp,
-                        max_tempurature: weatherData.temp,
-                        humidity: weatherData.humidity,
-                        precipitation: weatherData.humidity,
-                        wind: weatherData.speed,
-                        weather_type: weatherData.description,
-                        city: city,
-                        weather_icon: weatherData.icon,
-                    },
-                ])
-                .select();
+        // Check if an outfit for the current date already exists for the user
+        const { data: existingOutfits, error: existingOutfitsError } = await supabase
+            .from('outfits')
+            .select('id, weather:weather_id(*)')
+            .eq('user_id', session?.user.id)
+            .eq('weather.date', currentDate.split('T')[0]); // Compare date part only
+
+        if (existingOutfitsError) {
+            throw existingOutfitsError;
+        }
+
+        if (existingOutfits && existingOutfits.length > 0) {
+            Alert.alert('Увага', 'Обрання для цієї дати вже існує.');
+            return;
+        }
+
+        // Insert new weather data with date
+        const { data: weather, error: WeatherError } = await supabase
+            .from('weather')
+            .insert([
+                {
+                    date: currentDate, // Add this line
+                    min_tempurature: Math.round(weatherData.temp),
+                    max_tempurature: Math.round(weatherData.temp),
+                    humidity: weatherData.humidity,
+                    precipitation: weatherData.humidity,
+                    wind: weatherData.speed,
+                    weather_type: weatherData.description,
+                    city: city,
+                    weather_icon: weatherData.icon,
+                },
+            ])
+            .select();
     
             if (WeatherError) {
                 throw WeatherError;
@@ -217,6 +216,7 @@ export default function Home() {
                         {
                             user_id: session?.user.id,
                             weather_id: weatherId,
+                             date: currentDate,
                         },
                     ])
                     .select('id');
