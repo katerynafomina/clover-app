@@ -179,7 +179,7 @@ export default function Home() {
 
             console.log('Existing outfits:', existingOutfits);
     
-            if (existingOutfits.weather) {
+            if (existingOutfits && existingOutfits.length > 0) {
                 // If an outfit for the current date already exists, show an alert
                 Alert.alert('Увага', 'Обрання для цієї дати вже існує.');
                 console.log('Outfit for the current date already exists:', existingOutfits, currentDateStr);

@@ -104,7 +104,7 @@ useEffect(() => {
 
     const { uri } = result.assets[0];
     console.log('Image URI:', uri);
-
+    
     const response = await fetch(uri);
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.status}`);
@@ -123,7 +123,10 @@ useEffect(() => {
     }
 
     console.log('Image uploaded:', data?.path);
+    setImageShown(uri);
     setImageUrl(data?.path);
+    await processImage(data?.path ?? '');
+    console.log('Image processed:', data?.path);
   } catch (error) {
     console.error('Image upload error:', error);
     Alert.alert('Failed to upload image. Please try again.');

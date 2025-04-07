@@ -29,6 +29,9 @@ export type RootStackParamList = {
   Auth: undefined;
   Register: undefined;
   Home: undefined; // Додайте це
+    AllPosts: undefined; // Додайте це
+  MyPosts: undefined; // Додайте це 
+  AddPost: undefined; // Додайте це
 };
 
 
@@ -169,6 +172,8 @@ const CommunityStack = () => {
     </Stack.Navigator>
   );
 };
+
+
 
 
 const HomeTabs = () => {
