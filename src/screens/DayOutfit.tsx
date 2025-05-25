@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import {ActivityIndicator} from 'react-native';
@@ -23,6 +23,7 @@ type OutfitItem = {
   id: number;
   category: string;
   photo_url: string;
+  image?: string;
 };
 
 const DayOutfit = ({ route }: { route: any }) => {
@@ -32,40 +33,117 @@ const DayOutfit = ({ route }: { route: any }) => {
     const [outfitItems, setOutfitItems] = useState<OutfitItem[]>([]);
     const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPosting, setIsPosting] = useState(false);
+  const [isPosted, setIsPosted] = useState(false);
     const navigation = useNavigation() as NavigationProp<any>;
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
         });
-    }, [])
+    }, []);
+
+  // Перевірка, чи вже опубліковано цей образ
+  const checkIfPosted = async (outfitId: number) => {
+    try {
+      const { data, error, count } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact' })
+        .eq('outfit_id', outfitId);
+      
+      if (error) {
+        console.error('Error checking post status:', error.message);
+        return false;
+      }
+      
+      setIsPosted(count !== null && count > 0);
+      return count !== null && count > 0;
+    } catch (error) {
+      console.error('Error checking if outfit is posted:', error);
+      return false;
+    }
+  };
 
   const deleteOutfit = async () => {
     try {
+      Alert.alert(
+        'Підтвердження',
+        'Ви впевнені, що хочете видалити цей образ?',
+        [
+          { text: 'Скасувати', style: 'cancel' },
+          { 
+            text: 'Видалити', 
+            style: 'destructive',
+            onPress: async () => {
+              const { error:outfit_error } = await supabase
+                .from('outfit_item')
+                .delete()
+                .eq('outfit_id', outfitId);
+              
+              if (outfit_error) {
+                console.error('Error deleting outfit items:', outfit_error.message);
+                return;
+              }    
+              const { error } = await supabase
+                .from('outfits')
+                .delete()
+                .eq('id', outfitId); 
+              
+              if (error) {
+                console.error('Error deleting outfit:', error.message);
+                return;
+              }
 
-    const { error:outfit_error } = await supabase
-      .from('outfit_item')
-      .delete()
-        .eq('outfit_id', outfitId);
+              navigation.goBack();
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error deleting outfit:', error);
+    }
+  };
+
+  const shareOutfit = async () => {
+    if (!outfitId || !session) {
+      Alert.alert('Помилка', 'Не вдалося отримати дані образу');
+      return;
+    }
+
+    try {
+      setIsPosting(true);
+
+      // Перевірка, чи вже опубліковано
+      const alreadyPosted = await checkIfPosted(outfitId);
       
-      if (outfit_error) {
-        console.error('Error deleting outfit items:', outfit_error.message);
-        return;
-      }    
-      const { error } = await supabase
-        .from('outfits')
-        .delete()
-        .eq('id', outfitId); 
-      navigation.goBack();
-      if (error) {
-        console.error('Error deleting outfit:', error.message);
+      if (alreadyPosted) {
+        Alert.alert('Інформація', 'Цей образ вже опубліковано в спільноті');
+        setIsPosting(false);
         return;
       }
 
-    }catch (error) {
-      console.error('Error deleting outfit:', error);
+      // Створення нового поста
+      const { data, error } = await supabase
+        .from('posts')
+        .insert([
+          { outfit_id: outfitId }
+        ])
+        .select();
+
+      if (error) {
+        console.error('Error creating post:', error.message);
+        Alert.alert('Помилка', 'Не вдалося опублікувати образ');
+      } else {
+        Alert.alert('Успішно', 'Ваш образ опубліковано в спільноті');
+        setIsPosted(true);
+      }
+    } catch (error) {
+      console.error('Error sharing outfit:', error);
+      Alert.alert('Помилка', 'Щось пішло не так при публікації образу');
+    } finally {
+      setIsPosting(false);
     }
-  }
+  };
 
   const fetchOutfitItems = async () => {
     if (!session) {
@@ -111,6 +189,10 @@ const DayOutfit = ({ route }: { route: any }) => {
       
       const outfitId = outfits[0].id;
       setOutfitId(outfitId);
+
+      // Перевірка, чи опубліковано цей образ
+      await checkIfPosted(outfitId);
+      
       const { data: outfitItemsData, error: outfitItemsError } = await supabase
         .from('outfit_item')
         .select('item_id')
@@ -158,18 +240,16 @@ const DayOutfit = ({ route }: { route: any }) => {
   };
 
   useEffect(() => {
-    if (session ) {
+    if (session) {
       fetchOutfitItems();
     }
-  }, [day, session, weatherData]);
+  }, [day, session]);
 
   const renderItem = ({ item }: { item: any }) => (
-        // <View style={styles.item}>
-            <TouchableOpacity  style={styles.item}>
-                <Image source={{ uri: item.image }} style={styles.image} />
-            </TouchableOpacity>
-        // </View>
-    );
+    <TouchableOpacity style={styles.item}>
+      <Image source={{ uri: item.image }} style={styles.image} />
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -201,22 +281,36 @@ const DayOutfit = ({ route }: { route: any }) => {
       </View>
 
       <Text style={styles.title}>Образ</Text>
-      {isLoading? (
+      {isLoading ? (
         <ActivityIndicator size="large" color="#0000ff" />
       ) : (
-          
         <FlatList
-                        style={{ width: '100%' }}
-                        data={outfitItems}
-                        renderItem={renderItem}
-                        keyExtractor={(item) => item.id.toString()}
-                        numColumns={2}
-                        contentContainerStyle={styles.listContainer}
-                    />
-         
+          style={{ width: '100%' }}
+          data={outfitItems}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2}
+          contentContainerStyle={styles.listContainer}
+        />
       )}
-       <Button text="Видалити образ" onPress={deleteOutfit} />
       
+      <View style={styles.buttonContainer}>
+      <Button text="Видалити образ" onPress={deleteOutfit} />
+        
+        {isPosted ? (
+          <Button 
+            text="Опубліковано ✓" 
+            onPress={() => {}} 
+            disabled={true}
+          />
+        ) : (
+          <Button 
+            text={isPosting ? "Публікація..." : "Опублікувати в спільноті"} 
+            onPress={shareOutfit} 
+            disabled={isPosting}
+          />
+        )}
+      </View>
     </View>
   );
 };
@@ -234,22 +328,40 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   listContainer: {
-        paddingHorizontal: 10,
-    },
-    item: {
-        flex: 1,
-        margin: 5,
-        borderRadius: 10,
-        overflow: 'hidden',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    image: {
-        width: '100%',
-        height: 300, // Висота зображення
-        borderRadius: 10,
-        resizeMode: 'contain', // Адаптація зображення
-    },
+    paddingHorizontal: 10,
+    paddingBottom: 80, // Додаємо відступ знизу для кнопок
+  },
+  item: {
+    flex: 1,
+    margin: 5,
+    borderRadius: 10,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  image: {
+    width: '100%',
+    height: 300, // Висота зображення
+    borderRadius: 10,
+    resizeMode: 'contain', // Адаптація зображення
+  },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 16,
+    right: 16,
+    flexDirection: 'column',
+    gap: 10,
+  },
+  deleteButton: {
+    backgroundColor: '#ff4d4d',
+  },
+  shareButton: {
+    backgroundColor: '#4CAF50',
+  },
+  disabledButton: {
+    backgroundColor: '#aaaaaa',
+  },
 });
 
 export default DayOutfit;

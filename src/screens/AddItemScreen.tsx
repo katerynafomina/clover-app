@@ -28,22 +28,6 @@ useEffect(() => {
   });
 }, []);
 
-  const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: (ImagePicker as any).MediaTypeOptions.Images, // Обхід TypeScript помилки
-        allowsEditing: true,
-        quality: 1,
-      });
-
-      if (!result.canceled) {
-        setImageUrl(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Image picker error:', error);
-    }
-  };
-
   const processImage = async (path: string) => {
     try {
       console.log('Processing image:', imageUrl);
@@ -51,32 +35,32 @@ useEffect(() => {
         .from('clothes')
         .getPublicUrl(path);
 
-      const processedImagePath = await removeBackground(image.publicUrl);
-      if (!processedImagePath) {
-        throw new Error('Failed to process image background.');
-      }
-      console.log('Processed image path:', processedImagePath);
-      setImageShown(processedImagePath);
-      const base64Image = await FileSystem.readAsStringAsync(processedImagePath, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      console.log('Base64 image:', processImage);
+      // const processedImagePath = await removeBackground(image.publicUrl);
+      // if (!processedImagePath) {
+      //   throw new Error('Failed to process image background.');
+      // }
+      // console.log('Processed image path:', processedImagePath);
+      // setImageShown(processedImagePath);
+      // const base64Image = await FileSystem.readAsStringAsync(processedImagePath, {
+      //   encoding: FileSystem.EncodingType.Base64,
+      // });
+      // console.log('Base64 image:', processImage);
 
-      const arrayBuffer = await fetch(processedImagePath).then((res) => res.arrayBuffer());
+      // const arrayBuffer = await fetch(processedImagePath).then((res) => res.arrayBuffer());
 
-      const { data: processedUploadData, error: processedUploadError } = await supabase.storage
-        .from('clothes')
-        .upload(`${Date.now()}_processed.jpeg`, arrayBuffer, {
-          contentType: 'image/jpeg',
-        });
+      // const { data: processedUploadData, error: processedUploadError } = await supabase.storage
+      //   .from('clothes')
+      //   .upload(`${Date.now()}_processed.jpeg`, arrayBuffer, {
+      //     contentType: 'image/jpeg',
+      //   });
 
-      if (processedUploadError) {
-        throw processedUploadError;
-      }
+      // if (processedUploadError) {
+      //   throw processedUploadError;
+      // }
 
-      const processedImageUrl = processedUploadData?.path ?? '';
+      // const processedImageUrl = processedUploadData?.path ?? '';
 
-      setImageUrl(processedImageUrl);
+      setImageUrl(image.publicUrl);
       Alert.alert('Image uploaded and processed successfully!');
 
     } catch (error) {
@@ -92,7 +76,7 @@ useEffect(() => {
     setUploading(true);
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images', 
       allowsEditing: true,
       quality: 1,
     });
