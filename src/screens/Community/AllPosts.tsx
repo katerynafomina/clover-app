@@ -8,6 +8,7 @@ interface OutfitItem {
   photo_url: string;
   category: string;
   subcategory: string | null;
+  image?: string; // Додано поле для URL зображення з Storage
 }
 
 interface Post {
@@ -157,7 +158,10 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
       }
 
       // Трансформуємо дані у потрібний формат
-      const transformedPosts: Post[] = (data as RawPostData[])?.map(post => ({
+      const rawData = data as unknown as RawPostData[];
+      
+      // Підготовка даних без URL зображень
+      const postsWithoutImages: Post[] = rawData?.map(post => ({
         post_id: post.id,
         post_created_at: post.created_at,
         username: post.outfits.profiles.username,
@@ -176,7 +180,49 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         })) || []
       })) || [];
 
-      setPosts(transformedPosts);
+      // Завантаження URL зображень для кожного поста
+      const postsWithImages = await Promise.all(
+        postsWithoutImages.map(async (post) => {
+          // Завантаження URL аватара, якщо він є
+          let avatarUrl = post.avatar_url;
+          if (avatarUrl && !avatarUrl.startsWith('http')) {
+            const { data: avatarData } = await supabase.storage
+              .from('avatars')
+              .getPublicUrl(avatarUrl);
+            
+            if (avatarData) {
+              avatarUrl = avatarData.publicUrl;
+            }
+          }
+
+          // Завантаження URL для кожного елемента одягу
+          const outfitItemsWithImages = await Promise.all(
+            post.outfit_items.map(async (item) => {
+              if (!item.photo_url) {
+                return item;
+              }
+
+              const { data: imageData } = await supabase.storage
+                .from('clothes')
+                .getPublicUrl(item.photo_url);
+
+              return {
+                ...item,
+                photo_url: imageData?.publicUrl || item.photo_url,
+                image: imageData?.publicUrl // Додаткове поле для сумісності з DayOutfit
+              };
+            })
+          );
+
+          return {
+            ...post,
+            avatar_url: avatarUrl || DEFAULT_AVATAR_URL,
+            outfit_items: outfitItemsWithImages
+          };
+        })
+      );
+
+      setPosts(postsWithImages);
     } catch (error) {
       console.error('Error:', error);
       Alert.alert('Помилка', 'Щось пішло не так');
@@ -193,7 +239,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   const renderOutfitItem = ({ item }: { item: OutfitItem }) => (
     <View style={styles.outfitItem}>
       <Image 
-        source={{ uri: item.photo_url }} 
+        source={{ uri: item.image || item.photo_url }} 
         style={styles.outfitImage} 
         defaultSource={require('../../assets/icon.png')}
       />
@@ -233,7 +279,10 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           </Text>
         </View>
         {item.weather_icon && (
-          <Text style={styles.weatherIcon}>{item.weather_icon}</Text>
+          <Image 
+            source={{ uri: `http://openweathermap.org/img/wn/${item.weather_icon}.png` }} 
+            style={{ width: 50, height: 50, alignSelf: 'center' }} 
+          />
         )}
       </View>
 

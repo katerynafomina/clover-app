@@ -1,42 +1,525 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Image, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { supabase } from '../../lib/supabase';
+import { Session } from '@supabase/supabase-js';
+import Button from '../../components/Button';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 
-// Описуємо інтерфейс для об'єкта посту
-interface Post {
-  id: string;
-  content: string;
+// Інтерфейси для типізації
+interface OutfitItem {
+  item_id: number;
+  photo_url: string;
+  category: string;
+  subcategory: string | null;
+  image?: string;
 }
 
+interface Post {
+  post_id: number;
+  post_created_at: string;
+  username: string;
+  avatar_url: string | null;
+  weather_type: string;
+  min_tempurature: number;
+  max_tempurature: number;
+  weather_icon: string | null;
+  weather_date: string;
+  city: string;
+  outfit_items: OutfitItem[];
+  outfit_id: number; // Додано для можливості видалення
+}
+
+// Інтерфейси для результатів запиту Supabase
+interface RawOutfitData {
+  id: any;
+  date: any;
+  profiles: {
+    username: any;
+    avatar_url: any;
+  };
+  weather: {
+    weather_type: any;
+    min_tempurature: any;
+    max_tempurature: any;
+    weather_icon: any;
+    date: any;
+    city: any;
+  };
+  outfit_item: {
+    wardrobe: {
+      id: any;
+      photo_url: any;
+      category: any;
+      subcategory: any;
+    };
+  }[];
+}
+
+interface RawPostData {
+  id: any;
+  created_at: any;
+  outfit_id: any;
+  outfits: RawOutfitData;
+}
+
+const DEFAULT_AVATAR_URL = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+
 const MyPosts: React.FC = () => {
-  // Вказуємо, що myPosts є масивом об'єктів типу Post
-  const [myPosts, setMyPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const navigation = useNavigation() as NavigationProp<any>;
 
   useEffect(() => {
-    // Завантажуємо пости поточного користувача (приклад з фіктивними даними)
-    const fetchedMyPosts: Post[] = [
-      { id: '1', content: 'My first post' },
-      { id: '2', content: 'My second post' },
-    ];
-    setMyPosts(fetchedMyPosts);
+    // Отримуємо сесію поточного користувача
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        fetchUserPosts(session.user.id);
+      }
+    });
+
+    // Підписуємось на зміни в сесії
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        if (session) {
+          fetchUserPosts(session.user.id);
+        } else {
+          setPosts([]);
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Вказуємо, що item має тип Post
-  const renderItem = ({ item }: { item: Post }) => (
-    <View style={{ padding: 10, borderBottomWidth: 1 }}>
-      <Text>{item.content}</Text>
+  const fetchUserPosts = async (userId: string) => {
+    try {
+      setLoading(true);
+      
+      // Запит до бази даних для отримання постів користувача
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          id,
+          created_at,
+          outfit_id,
+          outfits!inner (
+            id,
+            date,
+            user_id,
+            profiles!inner (
+              username,
+              avatar_url
+            ),
+            weather!inner (
+              weather_type,
+              min_tempurature,
+              max_tempurature,
+              weather_icon,
+              date,
+              city
+            ),
+            outfit_item (
+              wardrobe (
+                id,
+                photo_url,
+                category,
+                subcategory
+              )
+            )
+          )
+        `)
+        .eq('outfits.user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching user posts:', error);
+        Alert.alert('Помилка', 'Не вдалося завантажити ваші пости');
+        return;
+      }
+
+      // Трансформуємо дані
+      const rawData = data as unknown as RawPostData[];
+      
+      // Підготовка даних без URL зображень
+      const postsWithoutImages: Post[] = rawData?.map(post => ({
+        post_id: post.id,
+        post_created_at: post.created_at,
+        outfit_id: post.outfit_id,
+        username: post.outfits.profiles.username,
+        avatar_url: post.outfits.profiles.avatar_url,
+        weather_type: post.outfits.weather.weather_type,
+        min_tempurature: post.outfits.weather.min_tempurature,
+        max_tempurature: post.outfits.weather.max_tempurature,
+        weather_icon: post.outfits.weather.weather_icon,
+        weather_date: post.outfits.weather.date,
+        city: post.outfits.weather.city,
+        outfit_items: post.outfits.outfit_item?.map(item => ({
+          item_id: item.wardrobe.id,
+          photo_url: item.wardrobe.photo_url,
+          category: item.wardrobe.category,
+          subcategory: item.wardrobe.subcategory
+        })) || []
+      })) || [];
+
+      // Завантаження URL зображень для кожного поста
+      const postsWithImages = await Promise.all(
+        postsWithoutImages.map(async (post) => {
+          // Завантаження URL аватара, якщо він є
+          let avatarUrl = post.avatar_url;
+          if (avatarUrl && !avatarUrl.startsWith('http')) {
+            const { data: avatarData } = await supabase.storage
+              .from('avatars')
+              .getPublicUrl(avatarUrl);
+            
+            if (avatarData) {
+              avatarUrl = avatarData.publicUrl;
+            }
+          }
+
+          // Завантаження URL для кожного елемента одягу
+          const outfitItemsWithImages = await Promise.all(
+            post.outfit_items.map(async (item) => {
+              if (!item.photo_url) {
+                return item;
+              }
+
+              const { data: imageData } = await supabase.storage
+                .from('clothes')
+                .getPublicUrl(item.photo_url);
+
+              return {
+                ...item,
+                photo_url: imageData?.publicUrl || item.photo_url,
+                image: imageData?.publicUrl
+              };
+            })
+          );
+
+          return {
+            ...post,
+            avatar_url: avatarUrl || DEFAULT_AVATAR_URL,
+            outfit_items: outfitItemsWithImages
+          };
+        })
+      );
+
+      setPosts(postsWithImages);
+    } catch (error) {
+      console.error('Error:', error);
+      Alert.alert('Помилка', 'Щось пішло не так');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deletePost = async (postId: number) => {
+    try {
+      Alert.alert(
+        'Підтвердження',
+        'Ви впевнені, що хочете видалити цей пост?',
+        [
+          { text: 'Скасувати', style: 'cancel' },
+          { 
+            text: 'Видалити', 
+            style: 'destructive',
+            onPress: async () => {
+              setLoading(true);
+              
+              const { error } = await supabase
+                .from('posts')
+                .delete()
+                .eq('id', postId);
+                
+              if (error) {
+                console.error('Error deleting post:', error);
+                Alert.alert('Помилка', 'Не вдалося видалити пост');
+                setLoading(false);
+                return;
+              }
+              
+              // Оновлюємо список постів після видалення
+              if (session) {
+                fetchUserPosts(session.user.id);
+              }
+              
+              Alert.alert('Успішно', 'Пост видалено');
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      Alert.alert('Помилка', 'Щось пішло не так при видаленні посту');
+      setLoading(false);
+    }
+  };
+
+  const renderOutfitItem = ({ item }: { item: OutfitItem }) => (
+    <View style={styles.outfitItem}>
+      <Image 
+        source={{ uri: item.image || item.photo_url }} 
+        style={styles.outfitImage} 
+        defaultSource={require('../../assets/icon.png')}
+      />
+      <Text style={styles.outfitCategory}>{item.category}</Text>
+      {item.subcategory && (
+        <Text style={styles.outfitSubcategory}>{item.subcategory}</Text>
+      )}
     </View>
   );
 
+  const renderPost = ({ item }: { item: Post }) => (
+    <View style={styles.postContainer}>
+      {/* Заголовок поста з інформацією про користувача */}
+      <View style={styles.postHeader}>
+        <Image 
+          source={{ 
+            uri: item.avatar_url || DEFAULT_AVATAR_URL
+          }} 
+          style={styles.avatar} 
+          defaultSource={require('../../assets/icon.png')}
+        />
+        <View style={styles.userInfo}>
+          <Text style={styles.username}>{item.username}</Text>
+          <Text style={styles.postDate}>
+            {new Date(item.post_created_at).toLocaleDateString()}
+          </Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => deletePost(item.post_id)}
+        >
+          <Text style={styles.deleteButtonText}>✖</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Інформація про погоду */}
+      <View style={styles.weatherInfo}>
+        <Text style={styles.weatherTitle}>Погода в {item.city}</Text>
+        <View style={styles.weatherDetails}>
+          <Text style={styles.weatherType}>{item.weather_type}</Text>
+          <Text style={styles.temperature}>
+            {Math.round(item.min_tempurature)}° - {Math.round(item.max_tempurature)}°C
+          </Text>
+        </View>
+        {item.weather_icon && (
+          <Image 
+            source={{ uri: `http://openweathermap.org/img/wn/${item.weather_icon}.png` }} 
+            style={{ width: 50, height: 50, alignSelf: 'center' }} 
+          />
+        )}
+      </View>
+
+      {/* Одяг */}
+      <View style={styles.outfitSection}>
+        <Text style={styles.outfitTitle}>Образ:</Text>
+        <FlatList
+          data={item.outfit_items}
+          renderItem={renderOutfitItem}
+          keyExtractor={(outfitItem) => outfitItem.item_id.toString()}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.outfitList}
+        />
+      </View>
+    </View>
+  );
+
+  const renderEmptyList = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>У вас ще немає опублікованих постів</Text>
+      <Button 
+        text="Створити новий образ" 
+        onPress={() => navigation.navigate('CreateOutfit')} 
+      />
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text>Завантаження ваших постів...</Text>
+      </View>
+    );
+  }
+
+  if (!session) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>Увійдіть у свій акаунт, щоб побачити ваші пости</Text>
+        <Button 
+          text="Увійти" 
+          onPress={() => navigation.navigate('Login')} 
+        />
+      </View>
+    );
+  }
+
   return (
-    <View>
-      <Text>My Posts</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Мої пости</Text>
       <FlatList
-        data={myPosts}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        data={posts}
+        renderItem={renderPost}
+        keyExtractor={(item) => item.post_id.toString()}
+        ListEmptyComponent={renderEmptyList}
+        refreshing={loading}
+        onRefresh={() => session && fetchUserPosts(session.user.id)}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={posts.length === 0 ? { flex: 1 } : undefined}
       />
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    gap: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f5f5f5',
+    gap: 20,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+  },
+  postContainer: {
+    backgroundColor: '#fff',
+    marginVertical: 8,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  username: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  postDate: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  deleteButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#ff4d4d',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  weatherInfo: {
+    backgroundColor: '#e3f2fd',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  weatherTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1976d2',
+    marginBottom: 4,
+  },
+  weatherDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  weatherType: {
+    fontSize: 16,
+    color: '#333',
+    textTransform: 'capitalize',
+  },
+  temperature: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1976d2',
+  },
+  outfitSection: {
+    marginBottom: 12,
+  },
+  outfitTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  outfitList: {
+    flexGrow: 0,
+  },
+  outfitItem: {
+    marginRight: 12,
+    alignItems: 'center',
+    width: 80,
+  },
+  outfitImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  outfitCategory: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+  },
+  outfitSubcategory: {
+    fontSize: 8,
+    color: '#666',
+    textAlign: 'center',
+  },
+});
 
 export default MyPosts;
