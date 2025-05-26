@@ -11,14 +11,25 @@ import getCategoriesByTemperature from '../components/GetSubCategoryForTemperatu
 import filterAndRandomizeCategories from '../components/GetCategoryForOutfut';
 import { get } from 'react-native/Libraries/TurboModule/TurboModuleRegistry';
 
+// Інтерфейс для елемента гардеробу
+interface WardrobeItem {
+    id: number;
+    photo_url: string;
+    category: string;
+    subcategory: string | null;
+    user_id: string;
+    isAvailable: boolean;
+    image?: string;
+}
+
 export default function Home() {
     const [latitude, setLatitude] = useState(0.0);
     const [longitude, setLongitude] = useState(0.0);
     const [city, setCity] = useState('');
     const [weatherData, setWeatherData] = useState<any>(null);
-    const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
+    const [wardrobeItems, setWardrobeItems] = useState<WardrobeItem[]>([]);
     const [session, setSession] = useState<Session | null>(null);
-    const [selectedItems, setSelectedItems] = useState<any[]>([]);
+    const [selectedItems, setSelectedItems] = useState<WardrobeItem[]>([]);
 
     const handleLocationChange = (city: string, latitude: number, longitude: number) => {
         setCity(city);
@@ -55,7 +66,7 @@ export default function Home() {
                 });
                 console.log('Погода:', data1);
                 console.log('Прогноз:', data2.list.slice(0, 5));
-                console.log("Weather data:", weatherData.temp);
+                console.log("Weather data:", weatherData?.temp);
             } catch (error) {
                 console.warn('Помилка при отриманні погодових даних:', error);
             }
@@ -80,31 +91,39 @@ export default function Home() {
         useCallback(() => {
             const fetchItems = async () => {
                 try {
+                    // Отримуємо тільки доступні речі (isAvailable = true)
                     const { data: wardrobe, error } = await supabase
                         .from('wardrobe')
-                        .select('id, photo_url, category, user_id, subcategory')
-                        .eq('user_id', session?.user.id);
-    
+                        .select('id, photo_url, category, user_id, subcategory, "isAvailable"')
+                        .eq('user_id', session?.user.id)
+                        .eq('"isAvailable"', true); // Фільтруємо тільки доступні речі
+
                     if (error) {
                         console.error('Error fetching wardrobe items:', error.message);
                     } else {
+                        console.log('Fetched available wardrobe items:', wardrobe.length);
+                        
                         const itemsWithUrls = await Promise.all(
                             wardrobe.map(async (item) => {
                                 const { data } = await supabase.storage
                                     .from('clothes')
                                     .getPublicUrl(item.photo_url);
-    
-                                return { ...item, image: data?.publicUrl };
+
+                                return { 
+                                    ...item, 
+                                    image: data?.publicUrl,
+                                    isAvailable: item.isAvailable !== undefined ? item.isAvailable : true
+                                } as WardrobeItem;
                             })
                         );
-    
+
                         setWardrobeItems(itemsWithUrls);
                     }
                 } catch (error) {
                     console.error('Error fetching wardrobe items:', error);
                 }
             };
-    
+
             if (session) {
                 fetchItems();
             }
@@ -112,48 +131,66 @@ export default function Home() {
     );
     
     useEffect(() => {
-        if (weatherData && wardrobeItems && !selectedItems.length) {
-            console.log(weatherData.temp)
+        // Очищаємо вибрані елементи при оновленні списку речей
+        setSelectedItems([]);
+        
+        if (weatherData && wardrobeItems.length > 0) {
+            console.log('Generating outfit for temperature:', weatherData.temp);
             const categories = getCategoriesByTemperature(weatherData.temp);
-            console.log(categories);
-            console.log("b       " + getUniqueSubCategories());
-            const filteredCategories = filterAndRandomizeCategories(categories, getUniqueSubCategories());
-            console.log(filteredCategories);
+            console.log('Recommended categories:', categories);
+            
+            const uniqueSubCategories = getUniqueSubCategories();
+            console.log('Available subcategories:', uniqueSubCategories);
+            
+            const filteredCategories = filterAndRandomizeCategories(categories, uniqueSubCategories);
+            console.log('Filtered categories:', filteredCategories);
 
             if (filteredCategories && typeof filteredCategories === 'object') {
                 const validFilteredCategories = Object.values(filteredCategories).filter((category) => category !== null);
-                console.log(validFilteredCategories);
+                console.log('Valid filtered categories:', validFilteredCategories);
     
-                const selectedItems = wardrobeItems.filter((item) => 
+                const itemsForCategories = wardrobeItems.filter((item) => 
                     validFilteredCategories.some((category) => item.subcategory === category)
                 );
-                console.log(selectedItems);
+                console.log('Items matching filtered categories:', itemsForCategories.length);
     
-                const randomItems = validFilteredCategories.map((category: string | null) => {
-                    const itemsInCategory = selectedItems.filter(item => item.subcategory === category);
-                    return itemsInCategory.length > 0
-                        ? itemsInCategory[Math.floor(Math.random() * itemsInCategory.length)]
-                        : null;
+                // Вибираємо по одному випадковому елементу для кожної категорії
+                const randomItems: WardrobeItem[] = [];
+                
+                validFilteredCategories.forEach((category: string | null) => {
+                    const itemsInCategory = wardrobeItems.filter(item => 
+                        item.subcategory === category && item.isAvailable
+                    );
+                    
+                    if (itemsInCategory.length > 0) {
+                        const randomItem = itemsInCategory[Math.floor(Math.random() * itemsInCategory.length)];
+                        if (randomItem && !randomItems.some(item => item.id === randomItem.id)) {
+                            randomItems.push(randomItem);
+                        }
+                    }
                 });
     
-                console.log(randomItems);
-                for (const item of randomItems) {
-                    if (item) {
-                        setSelectedItems((prevItems) => [...prevItems, item]);
-                    }
+                console.log('Selected random items:', randomItems.length);
+                if (randomItems.length > 0) {
+                    setSelectedItems(randomItems);
                 }
             }
         }
-    }, [weatherData, wardrobeItems, selectedItems]);
-    
+    }, [weatherData, wardrobeItems]);
     
     const getUniqueCategories = () => {
+        // Отримуємо унікальні категорії тільки для доступних речей
         return Array.from(new Set(wardrobeItems.map(item => item.category)));
     };
+    
     const getUniqueSubCategories = () => {
-        return Array.from(new Set(wardrobeItems.map(item => item.subcategory)));
+        // Отримуємо унікальні підкатегорії тільки для доступних речей і видаляємо null значення
+        return Array.from(new Set(wardrobeItems.map(item => item.subcategory))).filter(
+            (subcategory): subcategory is string => subcategory !== null
+        );
     };
-    const toggleItemSelection = (item: any) => {
+    
+    const toggleItemSelection = (item: WardrobeItem) => {
         const isSelected = selectedItems.some((selected) => selected.id === item.id);
 
         if (isSelected) {
@@ -165,42 +202,51 @@ export default function Home() {
 
     const insertWeather = async () => {
         try {
-        // Get the current date in ISO format
-        const currentDate = new Date().toISOString();
+            // Get the current date in ISO format
+            const currentDate = new Date().toISOString();
+            
+            console.log('Current date:', currentDate.split('T')[0]); // Log the date part only
 
-        // Check if an outfit for the current date already exists for the user
-        const { data: existingOutfits, error: existingOutfitsError } = await supabase
-            .from('outfits')
-            .select('id, weather:weather_id(*)')
-            .eq('user_id', session?.user.id)
-            .eq('weather.date', currentDate.split('T')[0]); // Compare date part only
+            // Check if an outfit for the current date already exists for the user
+            const { data: existingOutfits, error: existingOutfitsError } = await supabase
+                .from('outfits')
+                .select('id, weather:weather_id(*)')
+                .eq('user_id', session?.user.id)
+                .eq('date', currentDate.split('T')[0]); // Compare date part only
 
-        if (existingOutfitsError) {
-            throw existingOutfitsError;
-        }
+            if (existingOutfitsError) {
+                throw existingOutfitsError;
+            }
 
-        if (existingOutfits && existingOutfits.length > 0) {
-            Alert.alert('Увага', 'Обрання для цієї дати вже існує.');
-            return;
-        }
+            if (existingOutfits && existingOutfits.length > 0) {
+                console.warn('Outfit for this date already exists:', existingOutfits);
+                Alert.alert('Увага', 'Обрання для цієї дати вже існує.');
+                return;
+            }
 
-        // Insert new weather data with date
-        const { data: weather, error: WeatherError } = await supabase
-            .from('weather')
-            .insert([
-                {
-                    date: currentDate, // Add this line
-                    min_tempurature: Math.round(weatherData.temp),
-                    max_tempurature: Math.round(weatherData.temp),
-                    humidity: weatherData.humidity,
-                    precipitation: weatherData.humidity,
-                    wind: weatherData.speed,
-                    weather_type: weatherData.description,
-                    city: city,
-                    weather_icon: weatherData.icon,
-                },
-            ])
-            .select();
+            // Перевіряємо, чи вибрано хоча б один елемент
+            if (selectedItems.length === 0) {
+                Alert.alert('Увага', 'Будь ласка, оберіть хоча б один елемент одягу для образу.');
+                return;
+            }
+
+            // Insert new weather data with date
+            const { data: weather, error: WeatherError } = await supabase
+                .from('weather')
+                .insert([
+                    {
+                        date: currentDate, // Add this line
+                        min_tempurature: Math.round(weatherData.temp),
+                        max_tempurature: Math.round(weatherData.temp),
+                        humidity: weatherData.humidity,
+                        precipitation: weatherData.humidity,
+                        wind: weatherData.speed,
+                        weather_type: weatherData.description,
+                        city: city,
+                        weather_icon: weatherData.icon,
+                    },
+                ])
+                .select();
     
             if (WeatherError) {
                 throw WeatherError;
@@ -216,7 +262,7 @@ export default function Home() {
                         {
                             user_id: session?.user.id,
                             weather_id: weatherId,
-                             date: currentDate,
+                            date: currentDate,
                         },
                     ])
                     .select('id');
@@ -243,7 +289,9 @@ export default function Home() {
                         throw InsertError;
                     }
     
-                    Alert.alert('Образ успішно додано!');
+                    Alert.alert('Успішно', 'Образ успішно додано!');
+                    // Очищаємо вибрані елементи після успішного додавання
+                    setSelectedItems([]);
                 }
             }
         } catch (error) {
@@ -317,30 +365,52 @@ export default function Home() {
                     </View>
                 </View>
                 <Text style={styles.sectionTitle}>Складіть образ на сьогодні</Text>
-                {getUniqueCategories().map((category, index) => (
-                    <View key={index}>
-                        <Text style={styles.categoryTitle}>{category}</Text>
-                        <FlatList
-                            data={wardrobeItems.filter(item => item.category === category)}
-                            keyExtractor={(item) => item.id.toString()}
-                            horizontal
-                            contentContainerStyle={{ padding: 5, gap: 10}}
-                            renderItem={({ item }) => (
-                                <Pressable
-                                    style={[
-                                        styles.item,
-                                        selectedItems.some((selected) => selected.id === item.id) && styles.selectedItem,
-                                    ]}
-                                    onPress={() => toggleItemSelection(item)}
-                                >
-                                    <Image source={{ uri: item.image }} style={styles.image} />
-                                </Pressable>
-                            )}
-                        />
+                
+                {wardrobeItems.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>У вашому гардеробі немає доступних речей</Text>
                     </View>
-                ))}
-                <View style={{ marginVertical: 20,}}></View>
-                <Button text="додати образ" onPress={insertWeather} />
+                ) : (
+                    getUniqueCategories().map((category, index) => {
+                        // Фільтруємо доступні речі для кожної категорії
+                        const itemsInCategory = wardrobeItems.filter(
+                            item => item.category === category
+                        );
+                        
+                        // Якщо в категорії немає доступних речей, не показуємо її
+                        if (itemsInCategory.length === 0) return null;
+                        
+                        return (
+                            <View key={index}>
+                                <Text style={styles.categoryTitle}>{category}</Text>
+                                <FlatList
+                                    data={itemsInCategory}
+                                    keyExtractor={(item) => item.id.toString()}
+                                    horizontal
+                                    contentContainerStyle={{ padding: 5, gap: 10}}
+                                    renderItem={({ item }) => (
+                                        <Pressable
+                                            style={[
+                                                styles.item,
+                                                selectedItems.some((selected) => selected.id === item.id) && styles.selectedItem,
+                                            ]}
+                                            onPress={() => toggleItemSelection(item)}
+                                        >
+                                            <Image source={{ uri: item.image }} style={styles.image} />
+                                        </Pressable>
+                                    )}
+                                />
+                            </View>
+                        );
+                    })
+                )}
+                
+                <View style={{ marginVertical: 20 }}></View>
+                <Button 
+                    text={selectedItems.length > 0 ? "додати образ" : "оберіть речі для образу"} 
+                    onPress={insertWeather} 
+                    disabled={selectedItems.length === 0}
+                />
             </ScrollView>
         </View>
     );
@@ -384,5 +454,16 @@ const styles = StyleSheet.create({
         width: 100,
         borderRadius: 10,
         resizeMode: 'contain',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        marginVertical: 20,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: '#666',
+        textAlign: 'center',
     },
 });
