@@ -81,8 +81,6 @@ const CategoryDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                     })
                 );
 
-                console.log('Wardrobe items with URLs:', itemsWithUrls);
-
                 setWardrobeItems(itemsWithUrls);
             }
         } catch (error) {
@@ -243,6 +241,19 @@ const CategoryDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 
     const renderItem = ({ item }: { item: WardrobeItem }) => (
         <View style={styles.itemContainer}>
+            {/* Кнопка видалення у вигляді кружечка у верхньому правому кутку */}
+            <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={() => deleteItem(item.id)}
+                disabled={item.isDeleting}
+            >
+                {item.isDeleting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                    <Text >🗑️</Text>
+                )}
+            </TouchableOpacity>
+            
             <TouchableOpacity 
                 style={[
                     styles.item,
@@ -262,41 +273,24 @@ const CategoryDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                 )}
             </TouchableOpacity>
             
-            <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                    style={[
-                        styles.actionButton,
-                        item.isAvailable ? styles.availableButton : styles.unavailableButton,
-                        item.isUpdating && styles.loadingButton
-                    ]}
-                    onPress={() => toggleAvailability(item.id)}
-                    disabled={item.isUpdating || item.isDeleting}
-                >
-                    {item.isUpdating ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                        <Text style={styles.actionButtonText}>
-                            {item.isAvailable ? '✓ Доступно' : '✗ Недоступно'}
-                        </Text>
-                    )}
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                    style={[
-                        styles.actionButton,
-                        styles.deleteButton,
-                        item.isDeleting && styles.loadingButton
-                    ]}
-                    onPress={() => deleteItem(item.id)}
-                    disabled={item.isUpdating || item.isDeleting}
-                >
-                    {item.isDeleting ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                        <Text style={styles.actionButtonText}>🗑️ Видалити</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
+            {/* Кнопка перемикання доступності внизу картки */}
+            <TouchableOpacity 
+                style={[
+                    styles.actionButton,
+                    item.isAvailable ? styles.availableButton : styles.unavailableButton,
+                    item.isUpdating && styles.loadingButton
+                ]}
+                onPress={() => toggleAvailability(item.id)}
+                disabled={item.isUpdating || item.isDeleting}
+            >
+                {item.isUpdating ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                    <Text style={styles.actionButtonText}>
+                        {item.isAvailable ? '✓ Доступно' : '✗ Недоступно'}
+                    </Text>
+                )}
+            </TouchableOpacity>
         </View>
     );
 
@@ -330,7 +324,7 @@ const CategoryDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#fff',
     },
     title: {
         fontSize: 24,
@@ -372,6 +366,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+        position: 'relative', // Додаємо для правильного позиціонування дочірніх елементів
     },
     item: {
         width: '100%',
@@ -389,7 +384,6 @@ const styles = StyleSheet.create({
     },
     unavailableImage: {
         opacity: 0.5,
-        // Додаємо сірий фільтр для недоступних елементів
         tintColor: '#808080', 
     },
     subcategory: {
@@ -404,26 +398,45 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     actionButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 20,
+        backgroundColor: 'transparent',
+        padding: 10,
         alignItems: 'center',
-        justifyContent: 'center',
+        borderRadius: 100,
+        marginVertical: 10,
+        borderWidth: 1,
+        alignSelf: 'center',
+        paddingHorizontal: 40,
+        marginTop: 'auto',
     },
     availableButton: {
-        backgroundColor: '#4CAF50',
     },
     unavailableButton: {
-        backgroundColor: '#9E9E9E',
     },
     deleteButton: {
-        backgroundColor: '#F44336',
+        position: 'absolute', // Абсолютне позиціонування
+        top: 8,               // Відступ зверху
+        right: 8,             // Відступ справа
+        zIndex: 1,            // Щоб кнопка була поверх інших елементів
+        backgroundColor: '#fff', // Додаємо білий фон для кращої видимості
+        //borderWidth: 1,
+        borderColor: '#000000',
+        borderRadius: 50,
+        padding: 4,
+        width: 30,
+        height: 30,           // Додаємо висоту для кращого вигляду
+        alignItems: 'center', // Центруємо вміст по горизонталі
+        justifyContent: 'center', // Центруємо вміст по вертикалі
+        shadowColor: '#000',  // Додаємо тінь для кращої видимості
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
     },
     loadingButton: {
         opacity: 0.7,
     },
     actionButtonText: {
-        color: '#fff',
+        color: '#000',
         fontSize: 12,
         fontWeight: '500',
     },
