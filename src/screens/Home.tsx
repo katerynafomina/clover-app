@@ -140,7 +140,6 @@ export default function Home() {
     // Генерація рекомендованих комірок на основі погоди
     useEffect(() => {
         if (weatherData && wardrobeItems.length > 0) {
-            console.log('Generating outfit cells...');
             const temperature = weatherData.temp;
             
             // Отримуємо рекомендовані категорії за температурою
@@ -151,12 +150,7 @@ export default function Home() {
             
             // Фільтруємо та рандомізуємо категорії
             const filteredCategories = filterAndRandomizeCategories(recommendedCategories, availableSubcategories);
-            
-            console.log('Temperature:', temperature);
-            console.log('Recommended categories:', recommendedCategories);
-            console.log('Available subcategories:', availableSubcategories);
-            console.log('Filtered categories:', filteredCategories);
-            
+
             // Будуємо комірки на основі отриманих категорій
             const recommendedCells: FlexibleCell[] = [];
             
@@ -237,7 +231,6 @@ export default function Home() {
 
             // Fallback - якщо немає рекомендованих категорій, показуємо основні
             if (recommendedCells.length === 0) {
-                console.log('No recommended categories found, using fallback');
                 // Додаємо базові категорії з наявного одягу
                 const availableCategories = Array.from(new Set(wardrobeItems.map(item => item.category)));
                 
@@ -261,12 +254,7 @@ export default function Home() {
             }
 
             setOutfitCells(recommendedCells);
-            console.log('Created outfit cells:', recommendedCells.length, recommendedCells);
         } else {
-            console.log('Waiting for weather data or wardrobe items...', {
-                hasWeatherData: !!weatherData,
-                wardrobeItemsCount: wardrobeItems.length
-            });
         }
     }, [weatherData, wardrobeItems]);
 
@@ -274,32 +262,15 @@ export default function Home() {
         const subcategories = Array.from(new Set(wardrobeItems.map(item => item.subcategory))).filter(
             (subcategory): subcategory is string => subcategory !== null
         );
-        console.log('All unique subcategories in wardrobe:', subcategories);
         return subcategories;
     };
 
-    // Додаткове логування змін стану комірок
-    useEffect(() => {
-        console.log('Outfit cells updated:', outfitCells.map(cell => ({
-            id: cell.id,
-            subcategories: cell.subcategories,
-            column: cell.column,
-            flexSize: cell.flexSize,
-            itemsCount: getItemsForCell(cell).length
-        })));
-    }, [outfitCells]);
 
     // Отримання елементів для конкретної комірки
     const getItemsForCell = (cell: FlexibleCell): WardrobeItem[] => {
         const items = wardrobeItems.filter(item => 
             cell.subcategories.includes(item.subcategory || '') && item.isAvailable
         );
-        
-        console.log(`Items for cell ${cell.id}:`, {
-            subcategories: cell.subcategories,
-            foundItems: items.length,
-            itemSubcategories: items.map(item => item.subcategory)
-        });
         
         return items;
     };
@@ -315,16 +286,13 @@ export default function Home() {
 
     // Навігація між елементами в комірці
     const nextItemInCell = (cellId: string) => {
-        console.log('Next item in cell:', cellId);
         setOutfitCells(prevCells => 
             prevCells.map(cell => {
                 if (cell.id === cellId) {
                     const items = getItemsForCell(cell);
-                    console.log('Items in cell:', items.length);
                     if (items.length === 0) return cell;
                     
                     const nextIndex = (cell.currentItemIndex + 1) % items.length;
-                    console.log('Next index:', nextIndex);
                     return { ...cell, currentItemIndex: nextIndex };
                 }
                 return cell;
@@ -333,18 +301,15 @@ export default function Home() {
     };
 
     const prevItemInCell = (cellId: string) => {
-        console.log('Previous item in cell:', cellId);
         setOutfitCells(prevCells => 
             prevCells.map(cell => {
                 if (cell.id === cellId) {
                     const items = getItemsForCell(cell);
-                    console.log('Items in cell:', items.length);
                     if (items.length === 0) return cell;
                     
                     const prevIndex = cell.currentItemIndex === 0 
                         ? items.length - 1 
                         : cell.currentItemIndex - 1;
-                    console.log('Previous index:', prevIndex);
                     return { ...cell, currentItemIndex: prevIndex };
                 }
                 return cell;
@@ -354,7 +319,6 @@ export default function Home() {
 
     // Переміщення комірки між колонками
     const switchCellColumn = (cellId: string) => {
-        console.log('Switching column for cell:', cellId);
         setOutfitCells(prevCells => 
             prevCells.map(cell => 
                 cell.id === cellId 
@@ -366,7 +330,6 @@ export default function Home() {
 
     // Видалення категорії
     const deleteCategory = (cellId: string) => {
-        console.log('Deleting category from cell:', cellId);
         
         Alert.alert(
             'Видалити категорію',
@@ -379,7 +342,6 @@ export default function Home() {
                     onPress: () => {
                         setOutfitCells(prevCells => {
                             const updatedCells = prevCells.filter(cell => cell.id !== cellId);
-                            console.log('Cells after deletion:', updatedCells.length);
                             return updatedCells;
                         });
                         setShowEditModal(false);
@@ -392,7 +354,6 @@ export default function Home() {
 
     // Збільшення розміру комірки
     const increaseCellSize = (cellId: string) => {
-        console.log('Increasing size for cell:', cellId);
         setOutfitCells(prevCells => 
             prevCells.map(cell => 
                 cell.id === cellId 
@@ -404,7 +365,6 @@ export default function Home() {
 
     // Зменшення розміру комірки
     const decreaseCellSize = (cellId: string) => {
-        console.log('Decreasing size for cell:', cellId);
         setOutfitCells(prevCells => 
             prevCells.map(cell => 
                 cell.id === cellId 
@@ -416,18 +376,14 @@ export default function Home() {
 
     // Заміна категорії в комірці
     const replaceCategoryInCell = (cellId: string, newCategoryId: number) => {
-        console.log('Replacing category in cell:', cellId, 'with category:', newCategoryId);
         const selectedCategory = categories.find(cat => cat.id === newCategoryId);
         if (!selectedCategory) {
-            console.log('Category not found:', newCategoryId);
             return;
         }
 
-        console.log('Selected category:', selectedCategory.name, 'subcategories:', selectedCategory.subcategories);
 
         // Якщо це плаття - перебудовуємо структуру
         if (selectedCategory.name === 'Плаття') {
-            console.log('Dress selected, rebuilding layout');
             setOutfitCells(prevCells => {
                 // Видаляємо всі комірки з колонки 2
                 const filteredCells = prevCells.filter(c => c.column !== 2);
@@ -466,14 +422,10 @@ export default function Home() {
 
     // Додавання нової категорії (аксесуари, сумки)
     const addNewCategory = (categoryId: number) => {
-        console.log('Adding new category:', categoryId);
         const selectedCategory = categories.find(cat => cat.id === categoryId);
         if (!selectedCategory) {
-            console.log('Category not found for adding:', categoryId);
             return;
         }
-
-        console.log('Adding category:', selectedCategory.name);
 
         const newCellId = `added-${Date.now()}`;
         
@@ -537,14 +489,6 @@ export default function Home() {
         const hasItems = items.length > 0;
         const hasMultipleItems = items.length > 1;
 
-        console.log(`Rendering cell ${cell.id}:`, {
-            subcategories: cell.subcategories,
-            hasItems,
-            itemsCount: items.length,
-            currentIndex: cell.currentItemIndex,
-            currentItem: currentItem?.subcategory
-        });
-
         const cellHeight = cell.flexSize * 120; // Збільшена базова висота 120px на одиницю
 
         return (
@@ -556,29 +500,22 @@ export default function Home() {
                 <TouchableOpacity 
                     style={styles.categoryHeader}
                     onPress={() => {
-                        console.log('Category header pressed:', cell.id);
                         setSelectedCellId(cell.id);
                         setShowEditModal(true);
                     }}
                     onLongPress={() => {
-                        console.log('Category header long pressed:', cell.id);
                         setSelectedCellId(cell.id);
                         setShowCategoryModal(true);
                     }}
                 >
-                    <Text style={styles.categoryHeaderText}>
-                        {getCategoryName(cell.subcategories)}
-                    </Text>
                     <View style={styles.headerButtons}>
-                    <Image style={styles.iconStyle} source={require('../assets/settings.png')} />
-                        <Text style={styles.sizeText}>{cell.flexSize}</Text>
-                        {/* Модал редагування категорії */}
+
+                        {!editMode && <Image style={styles.iconStyle} source={require('../assets/settings.png')} />}
             <Modal
                 visible={showEditModal}
                 transparent={true}
                 animationType="slide"
                 onRequestClose={() => {
-                    console.log('Edit modal closing');
                     setShowEditModal(false);
                     setSelectedCellId(null);
                 }}
@@ -597,7 +534,6 @@ export default function Home() {
                             <View style={styles.editOptions}>
                                 {/* Зміна колонки */}
                                 <View style={styles.columnControls}>
-                                    <Text style={styles.sizeLabel}>Переміщення:</Text>
                                     <TouchableOpacity
                                         style={styles.columnSwitchButton}
                                         onPress={() => switchCellColumn(selectedCellId)}
@@ -670,7 +606,12 @@ export default function Home() {
                 </TouchableOpacity>
 
                 {/* Контент комірки */}
-                <View style={styles.cellContent}>
+                <TouchableOpacity
+                    style={styles.cellContent}
+                    onLongPress={() => {
+                        setSelectedCellId(cell.id);
+                        setShowCategoryModal(true);
+                    }}>
                     {hasItems && currentItem ? (
                         <Image 
                             source={{ uri: currentItem.image }} 
@@ -688,37 +629,38 @@ export default function Home() {
                             )}
                         </View>
                     )}
-                </View>
+                </TouchableOpacity>
 
                 {/* Навігаційні кнопки */}
                 {hasMultipleItems && (
                     <>
-                        <TouchableOpacity 
-                            style={[styles.navButton, styles.navButtonLeft]}
-                            onPress={() => {
-                                console.log('Previous button pressed for cell:', cell.id);
-                                prevItemInCell(cell.id);
-                            }}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={styles.navButtonText}>‹</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                            style={[styles.navButton, styles.navButtonRight]}
-                            onPress={() => {
-                                console.log('Next button pressed for cell:', cell.id);
-                                nextItemInCell(cell.id);
-                            }}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={styles.navButtonText}>›</Text>
-                        </TouchableOpacity>
+                        {!editMode &&
+                            <TouchableOpacity
+                                style={[styles.navButton, styles.navButtonLeft]}
+                                onPress={() => {
+                                    prevItemInCell(cell.id);
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.navButtonText}>‹</Text>
+                            </TouchableOpacity>
+                        }
+                        {!editMode &&
+                            <TouchableOpacity
+                                style={[styles.navButton, styles.navButtonRight]}
+                                onPress={() => {
+                                    nextItemInCell(cell.id);
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.navButtonText}>›</Text>
+                            </TouchableOpacity>
+                        }
                     </>
                 )}
 
                 {/* Індикатор кількості елементів */}
-                {hasMultipleItems && (
+                {hasMultipleItems && !editMode && (
                     <View style={styles.itemCounter}>
                         <Text style={styles.itemCounterText}>
                             {cell.currentItemIndex + 1}/{items.length}
@@ -729,18 +671,18 @@ export default function Home() {
                 {/* Швидкі кнопки зміни розміру та переміщення - показуємо тільки в режимі редагування */}
                 {editMode && (
                     <>
-                        <View style={styles.quickSizeControls}>
+                        <View style={styles.quickSizeControls} >
                             <TouchableOpacity
-                                style={[styles.quickSizeButton, styles.quickDecreaseButton]}
-                                onPress={() => decreaseCellSize(cell.id)}
-                            >
-                                <Text style={styles.quickSizeButtonText}>−</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.quickSizeButton, styles.quickIncreaseButton]}
+                                style={[styles.quickSizeButton, styles.quickResizeButton]}
                                 onPress={() => increaseCellSize(cell.id)}
                             >
-                                <Text style={styles.quickSizeButtonText}>+</Text>
+                                <Image style={styles.quickResizeIcon} source={require('../assets/icons8-plus-48.png')} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.quickSizeButton, styles.quickResizeButton]}
+                                onPress={() =>  decreaseCellSize(cell.id)}
+                            >
+                                <Image style={styles.quickResizeIcon} source={require('../assets/icons8-minus-48.png')} />
                             </TouchableOpacity>
                         </View>
                         
@@ -748,7 +690,7 @@ export default function Home() {
                             style={styles.quickColumnSwitch}
                             onPress={() => switchCellColumn(cell.id)}
                         >
-                            <Text style={styles.quickColumnSwitchText}>↔️</Text>
+                            <Image style={styles.quickResizeIcon} source={require('../assets/icons8-left-right-arrow-66.png')} />
                         </TouchableOpacity>
                     </>
                 )}
@@ -759,7 +701,6 @@ export default function Home() {
     // Збереження образу
     const saveOutfit = async () => {
         try {
-            console.log('Saving outfit...');
             const currentDate = new Date().toISOString();
             
             // Збираємо всі вибрані елементи з комірок
@@ -768,11 +709,8 @@ export default function Home() {
                 const currentItem = getCurrentItemForCell(cell);
                 if (currentItem) {
                     outfitItems.push(currentItem);
-                    console.log(`Added item from cell ${cell.id}:`, currentItem.subcategory);
                 }
             });
-
-            console.log('Total outfit items:', outfitItems.length);
 
             if (outfitItems.length === 0) {
                 Alert.alert('Увага', 'Оберіть хоча б один елемент одягу для образу.');
@@ -859,7 +797,6 @@ export default function Home() {
                     }
 
                     Alert.alert('Успішно', 'Образ успішно збережено!');
-                    console.log('Outfit saved successfully');
                 }
             }
         } catch (error) {
@@ -927,7 +864,6 @@ export default function Home() {
                     <TouchableOpacity
                         style={[styles.editModeButton, editMode && styles.editModeButtonActive]}
                         onPress={() => {
-                            console.log('Toggle edit mode:', !editMode);
                             setEditMode(!editMode);
                         }}
                     >
@@ -950,7 +886,9 @@ export default function Home() {
                 {editMode && (
                     <View style={styles.editInstructions}>
                         <Text style={styles.instructionsText}>
-                            💡 Натисніть на назву категорії для редагування • Використовуйте кнопки +/− для зміни розміру • ↔️ для переміщення між колонками
+                            Зажміть комірку для редагування             
+                            • Використовуйте кнопки +/− для зміни розміру
+                            • ↔ для переміщення між колонками
                         </Text>
                     </View>
                 )}
@@ -980,12 +918,11 @@ export default function Home() {
                     <TouchableOpacity 
                         style={styles.addAccessoryButton}
                         onPress={() => {
-                            console.log('Add accessory button pressed');
                             setSelectedCellId('new');
                             setShowCategoryModal(true);
                         }}
                     >
-                        <Text style={styles.addAccessoryText}>+ Додати аксесуари</Text>
+                        <Text style={styles.addAccessoryText}>+ Додати категорію</Text>
                     </TouchableOpacity>
                     
                     <Button 
@@ -1003,7 +940,6 @@ export default function Home() {
                 transparent={true}
                 animationType="slide"
                 onRequestClose={() => {
-                    console.log('Modal closing');
                     setShowCategoryModal(false);
                     setSelectedCellId(null);
                 }}
@@ -1026,7 +962,6 @@ export default function Home() {
                                     key={category.id}
                                     style={styles.categoryItem}
                                     onPress={() => {
-                                        console.log('Category selected:', category.name, 'for cell:', selectedCellId);
                                         if (selectedCellId === 'new') {
                                             addNewCategory(category.id);
                                         } else if (selectedCellId) {
@@ -1043,7 +978,6 @@ export default function Home() {
                         <TouchableOpacity
                             style={styles.closeModalButton}
                             onPress={() => {
-                                console.log('Close modal button pressed');
                                 setShowCategoryModal(false);
                                 setSelectedCellId(null);
                             }}
@@ -1060,7 +994,6 @@ export default function Home() {
                 transparent={true}
                 animationType="slide"
                 onRequestClose={() => {
-                    console.log('Edit modal closing');
                     setShowEditModal(false);
                     setSelectedCellId(null);
                 }}
@@ -1084,8 +1017,9 @@ export default function Home() {
                                         style={styles.columnSwitchButton}
                                         onPress={() => switchCellColumn(selectedCellId)}
                                     >
+                                        <Image style={styles.quickResizeIcon} source={require('../assets/icons8-left-right-arrow-66.png')} />
                                         <Text style={styles.columnSwitchText}>
-                                            ↔️ Перемістити в {outfitCells.find(cell => cell.id === selectedCellId)?.column === 1 ? '2-у' : '1-у'} колонку
+                                            Перемістити в {outfitCells.find(cell => cell.id === selectedCellId)?.column === 1 ? '2-у' : '1-у'} колонку
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -1123,14 +1057,14 @@ export default function Home() {
                                             setShowCategoryModal(true);
                                         }}
                                     >
-                                        <Text style={styles.actionButtonText}>🔄 Замінити</Text>
+                                        <Text style={styles.actionButtonText}>Замінити</Text>
                                     </TouchableOpacity>
                                     
                                     <TouchableOpacity
                                         style={[styles.actionButton, styles.deleteButton]}
                                         onPress={() => deleteCategory(selectedCellId)}
                                     >
-                                        <Text style={styles.actionButtonText}>🗑️ Видалити</Text>
+                                        <Text style={styles.actionButtonText}>Видалити</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -1208,15 +1142,12 @@ const styles = StyleSheet.create({
         gap: 15,
     },
     cell: {
-        backgroundColor: '#f8f9fa',
-        borderRadius: 12,
+        backgroundColor: 'transparent',
         position: 'relative',
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
         overflow: 'hidden',
     },
     categoryHeader: {
-        backgroundColor: '#e9ecef',
+        backgroundColor: 'transparent',
         paddingVertical: 6,
         paddingHorizontal: 10,
         flexDirection: 'row',
@@ -1246,7 +1177,7 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         borderRadius: 8,
-        resizeMode: 'cover',
+        resizeMode: 'contain',
     },
     emptyCellContent: {
         flex: 1,
@@ -1257,6 +1188,7 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         opacity: 0.6,
+        
     },
     emptyCellText: {
         fontSize: 32,
@@ -1267,7 +1199,6 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: '50%',
         transform: [{ translateY: -20 }],
-        backgroundColor: 'rgba(0,0,0,0.8)',
         borderRadius: 20,
         width: 40,
         height: 40,
@@ -1282,7 +1213,7 @@ const styles = StyleSheet.create({
         right: 8,
     },
     navButtonText: {
-        color: 'white',
+        color: 'black',
         fontSize: 20,
         fontWeight: 'bold',
     },
@@ -1301,21 +1232,18 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     addAccessoryButton: {
-        backgroundColor: '#007bff',
-        borderRadius: 12,
+        backgroundColor: 'transparent',
+        borderRadius: 30,
         paddingVertical: 15,
         paddingHorizontal: 20,
         marginBottom: 15,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        borderWidth: 1,
+        borderColor: '#000',
     },
     addAccessoryText: {
         textAlign: 'center',
         fontSize: 16,
-        color: '#fff',
+        color: '#000',
         fontWeight: '600',
     },
     buttonsContainer: {
@@ -1380,10 +1308,12 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     closeModalButton: {
-        backgroundColor: '#007bff',
-        borderRadius: 10,
+        backgroundColor: 'transparent',
+        borderRadius: 40,
         paddingVertical: 12,
         marginTop: 20,
+        borderWidth: 1,
+        borderColor: '#000',
     },
     headerButtons: {
         flexDirection: 'row',
@@ -1392,9 +1322,9 @@ const styles = StyleSheet.create({
     },
     sizeText: {
         fontSize: 10,
-        fontWeight: '600',
+        fontWeight: '400',
         color: '#495057',
-        backgroundColor: '#fff',
+        backgroundColor: '#000',
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 8,
@@ -1405,9 +1335,9 @@ const styles = StyleSheet.create({
         padding: 20,
         width: '100%',
         maxWidth: 350,
-        shadowColor: '#000',
+        shadowColor: '##dbdbdb',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
+        shadowOpacity: 0.5,
         shadowRadius: 4,
         elevation: 5,
     },
@@ -1415,20 +1345,21 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     columnSwitchButton: {
-        backgroundColor: '#17a2b8',
+        backgroundColor: 'transparent',
         paddingVertical: 12,
         paddingHorizontal: 20,
-        borderRadius: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 3,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#000',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 10,
     },
     columnSwitchText: {
-        color: '#fff',
+        color: '#000',
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '400',
         textAlign: 'center',
     },
     editOptions: {
@@ -1440,7 +1371,7 @@ const styles = StyleSheet.create({
     },
     sizeLabel: {
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '400',
         marginBottom: 15,
         textAlign: 'center',
     },
@@ -1452,30 +1383,30 @@ const styles = StyleSheet.create({
     sizeButton: {
         width: 50,
         height: 50,
-        borderRadius: 25,
+        borderRadius: 50,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 3,
     },
     decreaseButton: {
-        backgroundColor: '#dc3545',
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: '#000',
     },
     increaseButton: {
-        backgroundColor: '#28a745',
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: '#000',
     },
     sizeButtonText: {
-        color: '#fff',
+        color: '#000',
         fontSize: 24,
-        fontWeight: 'bold',
+        fontWeight: 'light',
+        textAlign: 'center',
     },
     currentSize: {
         fontSize: 24,
-        fontWeight: 'bold',
-        color: '#495057',
+        fontWeight: 'light',
+        color: '#000',
         minWidth: 40,
         textAlign: 'center',
     },
@@ -1486,38 +1417,37 @@ const styles = StyleSheet.create({
     actionButton: {
         flex: 1,
         paddingVertical: 15,
-        borderRadius: 12,
+        borderRadius: 40,
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#000',
     },
     replaceButton: {
-        backgroundColor: '#007bff',
+        backgroundColor: 'transparent',
     },
     deleteButton: {
-        backgroundColor: '#dc3545',
+        backgroundColor: 'transparent',
     },
     actionButtonText: {
-        color: '#fff',
+        color: '#000',
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '400',
     },
     editInstructions: {
-        backgroundColor: '#e3f2fd',
-        borderRadius: 10,
+        backgroundColor: '#f7f7f7',
+        borderBottomRightRadius: 10,
+        borderTopRightRadius: 10,
         padding: 15,
         marginHorizontal: 20,
         marginBottom: 15,
-        borderLeftWidth: 4,
-        borderLeftColor: '#007bff',
+        borderLeftWidth: 2,
+        borderLeftColor: '#00ffdl',
     },
     instructionsText: {
         fontSize: 14,
         color: '#495057',
-        textAlign: 'center',
+        textAlign: 'left',
         lineHeight: 20,
     },
     sectionHeader: {
@@ -1536,8 +1466,10 @@ const styles = StyleSheet.create({
         borderColor: '#000000',
     },
     editModeButtonActive: {
-        backgroundColor: '#007bff',
-        borderColor: '#007bff',
+        backgroundColor: 'transparent',
+        borderColor: '#000',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     editModeButtonText: {
         fontSize: 14,
@@ -1545,7 +1477,7 @@ const styles = StyleSheet.create({
         color: '#000',
     },
     editModeButtonTextActive: {
-        color: '#fff',
+        color: '#000',
     },
     quickSizeControls: {
         position: 'absolute',
@@ -1562,23 +1494,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         opacity: 0.8,
     },
-    quickDecreaseButton: {
-        backgroundColor: '#dc3545',
+    quickResizeButton: {
+        backgroundColor: 'transparent',
     },
-    quickIncreaseButton: {
-        backgroundColor: '#28a745',
-    },
-    quickSizeButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-        lineHeight: 16,
+    quickResizeIcon: {
+        height: 20,
+        width: 20,
     },
     quickColumnSwitch: {
         position: 'absolute',
         top: 5,
         right: 5,
-        backgroundColor: '#17a2b8',
+        backgroundColor: 'transparent',
         borderRadius: 15,
         width: 30,
         height: 30,
@@ -1586,13 +1513,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         opacity: 0.9,
     },
-    quickColumnSwitchText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
     closeModalText: {
-        color: 'white',
+        color: 'black',
         textAlign: 'center',
         fontSize: 16,
         fontWeight: 'bold',
