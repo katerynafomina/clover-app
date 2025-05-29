@@ -699,111 +699,148 @@ export default function Home() {
     };
 
     // Збереження образу
-    const saveOutfit = async () => {
-        try {
-            const currentDate = new Date().toISOString();
+    // Оновлена функція збереження образу в Home компоненті
+const saveOutfit = async () => {
+    try {
+        const currentDate = new Date().toISOString();
+        
+        // Збираємо всі вибрані елементи з комірок
+        const outfitItems: WardrobeItem[] = [];
+        const cellsData: any[] = [];
+        
+        outfitCells.forEach((cell, index) => {
+            const currentItem = getCurrentItemForCell(cell);
+            if (currentItem) {
+                outfitItems.push(currentItem);
+            }
             
-            // Збираємо всі вибрані елементи з комірок
-            const outfitItems: WardrobeItem[] = [];
-            outfitCells.forEach(cell => {
-                const currentItem = getCurrentItemForCell(cell);
-                if (currentItem) {
-                    outfitItems.push(currentItem);
-                }
+            // Зберігаємо інформацію про комірку
+            cellsData.push({
+                cell_id: cell.id,
+                column_number: cell.column,
+                flex_size: cell.flexSize,
+                position_index: index,
+                subcategories: cell.subcategories,
+                current_item_index: cell.currentItemIndex,
+                is_recommended: cell.isRecommended
             });
+        });
 
-            if (outfitItems.length === 0) {
-                Alert.alert('Увага', 'Оберіть хоча б один елемент одягу для образу.');
-                return;
-            }
+        if (outfitItems.length === 0) {
+            Alert.alert('Увага', 'Оберіть хоча б один елемент одягу для образу.');
+            return;
+        }
 
-            // Перевіряємо чи існує образ на цю дату
-            const { data: existingOutfits, error: existingOutfitsError } = await supabase
+        // Перевіряємо чи існує образ на цю дату
+        const { data: existingOutfits, error: existingOutfitsError } = await supabase
+            .from('outfits')
+            .select('id')
+            .eq('user_id', session?.user.id)
+            .eq('date', currentDate.split('T')[0]);
+
+        if (existingOutfitsError) {
+            throw existingOutfitsError;
+        }
+
+        if (existingOutfits && existingOutfits.length > 0) {
+            Alert.alert('Увага', 'Образ для цієї дати вже існує.');
+            return;
+        }
+
+        if (!weatherData) {
+            Alert.alert('Помилка', 'Немає погодних даних для збереження.');
+            return;
+        }
+
+        // Зберігаємо погодні дані
+        const { data: weather, error: WeatherError } = await supabase
+            .from('weather')
+            .insert([
+                {
+                    date: currentDate,
+                    min_tempurature: Math.round(weatherData.temp),
+                    max_tempurature: Math.round(weatherData.temp),
+                    humidity: weatherData.humidity,
+                    precipitation: weatherData.humidity,
+                    wind: weatherData.speed,
+                    weather_type: weatherData.description,
+                    city: city,
+                    weather_icon: weatherData.icon,
+                },
+            ])
+            .select();
+
+        if (WeatherError) {
+            throw WeatherError;
+        }
+
+        if (weather && weather.length > 0) {
+            const weatherId = weather[0].id;
+
+            // Зберігаємо образ
+            const { data: outfit, error: OutfitError } = await supabase
                 .from('outfits')
-                .select('id')
-                .eq('user_id', session?.user.id)
-                .eq('date', currentDate.split('T')[0]);
-
-            if (existingOutfitsError) {
-                throw existingOutfitsError;
-            }
-
-            if (existingOutfits && existingOutfits.length > 0) {
-                Alert.alert('Увага', 'Образ для цієї дати вже існує.');
-                return;
-            }
-
-            if (!weatherData) {
-                Alert.alert('Помилка', 'Немає погодних даних для збереження.');
-                return;
-            }
-
-            // Зберігаємо погодні дані
-            const { data: weather, error: WeatherError } = await supabase
-                .from('weather')
                 .insert([
                     {
+                        user_id: session?.user.id,
+                        weather_id: weatherId,
                         date: currentDate,
-                        min_tempurature: Math.round(weatherData.temp),
-                        max_tempurature: Math.round(weatherData.temp),
-                        humidity: weatherData.humidity,
-                        precipitation: weatherData.humidity,
-                        wind: weatherData.speed,
-                        weather_type: weatherData.description,
-                        city: city,
-                        weather_icon: weatherData.icon,
                     },
                 ])
-                .select();
+                .select('id');
 
-            if (WeatherError) {
-                throw WeatherError;
+            if (OutfitError) {
+                throw OutfitError;
             }
 
-            if (weather && weather.length > 0) {
-                const weatherId = weather[0].id;
+            if (outfit && outfit.length > 0) {
+                const outfitId = outfit[0].id;
 
-                // Зберігаємо образ
-                const { data: outfit, error: OutfitError } = await supabase
-                    .from('outfits')
-                    .insert([
-                        {
-                            user_id: session?.user.id,
-                            weather_id: weatherId,
-                            date: currentDate,
-                        },
-                    ])
-                    .select('id');
+                // Зберігаємо інформацію про комірки
+                const { error: CellsError } = await supabase
+                    .from('outfit_cells')
+                    .insert(
+                        cellsData.map(cell => ({
+                            ...cell,
+                            outfit_id: outfitId
+                        }))
+                    );
 
-                if (OutfitError) {
-                    throw OutfitError;
+                if (CellsError) {
+                    throw CellsError;
                 }
 
-                if (outfit && outfit.length > 0) {
-                    const outfitId = outfit[0].id;
+                // Зберігаємо елементи образу з прив'язкою до комірок
+                const itemsToInsert = outfitItems.map((item) => {
+                    // Знаходимо відповідну комірку для цього елемента
+                    const correspondingCell = outfitCells.find(cell => {
+                        const cellItems = getItemsForCell(cell);
+                        return cellItems.some(cellItem => cellItem.id === item.id);
+                    });
 
-                    // Зберігаємо елементи образу
-                    const itemsToInsert = outfitItems.map((item) => ({
+                    return {
                         outfit_id: outfitId,
                         item_id: item.id,
-                    }));
+                        cell_id: correspondingCell?.id || null
+                    };
+                });
 
-                    const { error: InsertError } = await supabase
-                        .from('outfit_item')
-                        .insert(itemsToInsert);
+                const { error: InsertError } = await supabase
+                    .from('outfit_item')
+                    .insert(itemsToInsert);
 
-                    if (InsertError) {
-                        throw InsertError;
-                    }
-
-                    Alert.alert('Успішно', 'Образ успішно збережено!');
+                if (InsertError) {
+                    throw InsertError;
                 }
+
+                Alert.alert('Успішно', 'Образ та його layout успішно збережено!');
             }
-        } catch (error) {
-            console.error('Error saving outfit:', error);
-            Alert.alert('Помилка', 'Не вдалося зберегти образ. Спробуйте ще раз.');
         }
-    };
+    } catch (error) {
+        console.error('Error saving outfit:', error);
+        Alert.alert('Помилка', 'Не вдалося зберегти образ. Спробуйте ще раз.');
+    }
+};
 
     // Розділення комірок по колонках
     const column1Cells = outfitCells.filter(cell => cell.column === 1);

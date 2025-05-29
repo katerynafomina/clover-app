@@ -108,6 +108,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
     return () => subscription.unsubscribe();
   }, [username]);
 
+  // Навігація до деталей поста
+  const navigateToPostDetail = (postId: number) => {
+    navigation.navigate('PostDetail', { postId });
+  };
+
   const fetchUserProfile = async () => {
     try {
       setLoading(true);
@@ -360,7 +365,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
   };
 
   // Обробка лайків
-  const handleLike = async (postId: number) => {
+  const handleLike = async (postId: number, event?: any) => {
+    if (event) {
+      event.stopPropagation(); // Зупиняємо поширення події
+    }
+
     if (!session) {
       Alert.alert('Увага', 'Щоб поставити лайк, необхідно увійти в систему');
       navigation.navigate('Auth');
@@ -447,7 +456,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
   };
 
   // Обробка збережень
-  const handleSave = async (postId: number) => {
+  const handleSave = async (postId: number, event?: any) => {
+    if (event) {
+      event.stopPropagation();
+    }
+
     if (!session) {
       Alert.alert('Увага', 'Щоб зберегти пост, необхідно увійти в систему');
       navigation.navigate('Auth');
@@ -688,7 +701,10 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
   };
 
   // Відкриття модального вікна коментарів
-  const openCommentsModal = (post: Post) => {
+  const openCommentsModal = (post: Post, event?: any) => {
+    if (event) {
+      event.stopPropagation();
+    }
     setSelectedPost(post);
     setSelectedPostComments([]);
     setCommentsModalVisible(true);
@@ -737,7 +753,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
   );
 
   const renderPost = ({ item }: { item: Post }) => (
-    <View style={styles.postContainer}>
+    <TouchableOpacity 
+      style={styles.postContainer}
+      onPress={() => navigateToPostDetail(item.post_id)}
+      activeOpacity={0.9}
+    >
       {/* Інформація про погоду */}
       <View style={styles.weatherHeader}>
         <View style={styles.weatherInfo}>
@@ -768,6 +788,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.outfitList}
+          scrollEnabled={false} // Вимикаємо скрол для кращого UX
         />
       </View>
 
@@ -779,7 +800,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
             item.is_liked && styles.activeButton,
             item.isLikeLoading && styles.loadingButton
           ]}
-          onPress={() => handleLike(item.post_id)}
+          onPress={(e) => handleLike(item.post_id, e)}
           disabled={item.isLikeLoading}
         >
           <Text style={[styles.buttonIcon, item.is_liked && styles.activeButtonText]}>
@@ -792,7 +813,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
 
         <TouchableOpacity 
           style={styles.interactionButton}
-          onPress={() => openCommentsModal(item)}
+          onPress={(e) => openCommentsModal(item, e)}
         >
           <Text style={styles.buttonIcon}>💬</Text>
           <Text style={styles.buttonText}>{item.comments_count}</Text>
@@ -804,7 +825,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
             item.is_saved && styles.activeButton,
             item.isSaveLoading && styles.loadingButton
           ]}
-          onPress={() => handleSave(item.post_id)}
+          onPress={(e) => handleSave(item.post_id, e)}
           disabled={item.isSaveLoading}
         >
           <Text style={[styles.buttonIcon, item.is_saved && styles.activeButtonText]}>
@@ -815,7 +836,12 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+
+      {/* Індикатор що це кликабельно */}
+      <View style={styles.postIndicator}>
+        <Text style={styles.postIndicatorText}>Натисніть для деталей</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
@@ -1106,6 +1132,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: 'relative',
   },
   weatherHeader: {
     flexDirection: 'row',
@@ -1212,6 +1239,20 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   activeButtonText: {
+    color: '#1976d2',
+    fontWeight: '500',
+  },
+  postIndicator: {
+    position: 'absolute',
+    bottom: 8,
+    right: 12,
+    backgroundColor: 'rgba(25, 118, 210, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  postIndicatorText: {
+    fontSize: 10,
     color: '#1976d2',
     fontWeight: '500',
   },

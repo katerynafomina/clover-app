@@ -165,7 +165,6 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
       try {
         setSearchLoading(true);
         
-        // Шукаємо користувачів з постами
         const { data: users, error } = await supabase
           .from('profiles')
           .select(`
@@ -472,11 +471,14 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     navigation.navigate('UserProfile', { username });
   };
 
+  // Навігація до деталей поста
+  const navigateToPostDetail = (postId: number) => {
+    navigation.navigate('PostDetail', { postId });
+  };
+
   const selectUser = (username: string) => {
     setSearchQuery(username);
     setShowSuggestions(false);
-    // Можемо також одразу перейти на профіль
-    // navigateToUserProfile(username);
   };
 
   const clearSearch = () => {
@@ -487,7 +489,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   const renderUserSuggestion = ({ item }: { item: UserSuggestion }) => (
     <TouchableOpacity 
       style={styles.suggestionItem}
-      onPress={() => navigateToUserProfile(item.username)} // Переходимо на профіль
+      onPress={() => navigateToUserProfile(item.username)}
     >
       <Image 
         source={{ uri: item.avatar_url }} 
@@ -516,10 +518,19 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   );
 
   const renderPost = ({ item }: { item: Post }) => (
-    <View style={styles.postContainer}>
+    <TouchableOpacity 
+      style={styles.postContainer}
+      onPress={() => navigateToPostDetail(item.post_id)}
+      activeOpacity={0.9}
+    >
       <View style={styles.postHeader}>
-        {/* Аватар з навігацією */}
-        <TouchableOpacity onPress={() => navigateToUserProfile(item.username)}>
+        {/* Аватар з навігацією до профілю */}
+        <TouchableOpacity 
+          onPress={(e) => {
+            e.stopPropagation(); // Зупиняємо поширення події
+            navigateToUserProfile(item.username);
+          }}
+        >
           <Image 
             source={{ 
               uri: item.avatar_url || DEFAULT_AVATAR_URL
@@ -530,8 +541,13 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         </TouchableOpacity>
         
         <View style={styles.userInfo}>
-          {/* Ім'я користувача з навігацією */}
-          <TouchableOpacity onPress={() => navigateToUserProfile(item.username)}>
+          {/* Ім'я користувача з навігацією до профілю */}
+          <TouchableOpacity 
+            onPress={(e) => {
+              e.stopPropagation();
+              navigateToUserProfile(item.username);
+            }}
+          >
             <Text style={styles.username}>{item.username}</Text>
           </TouchableOpacity>
           <Text style={styles.postDate}>
@@ -566,6 +582,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           showsHorizontalScrollIndicator={false}
           style={styles.outfitList}
           contentContainerStyle={styles.outfitListContent}
+          scrollEnabled={false} // Вимикаємо скрол, щоб не заважав натисканню на пост
         />
       </View>
 
@@ -585,7 +602,12 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Text style={styles.statText}>{item.saves_count}</Text>
         </View>
       </View>
-    </View>
+
+      {/* Індикатор того, що це натискаємо */}
+      <View style={styles.postIndicator}>
+        <Text style={styles.postIndicatorText}>Натисніть для деталей</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
@@ -865,6 +887,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    position: 'relative',
   },
   postHeader: {
     flexDirection: 'row',
@@ -883,7 +906,7 @@ const styles = StyleSheet.create({
   username: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1976d2', // Зміна кольору для вказівки на можливість натискання
+    color: '#1976d2',
   },
   postDate: {
     fontSize: 12,
@@ -979,6 +1002,20 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 14,
     color: '#666',
+    fontWeight: '500',
+  },
+  postIndicator: {
+    position: 'absolute',
+    bottom: 8,
+    right: 12,
+    backgroundColor: 'rgba(25, 118, 210, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  postIndicatorText: {
+    fontSize: 10,
+    color: '#1976d2',
     fontWeight: '500',
   },
   myPostsButton: {
