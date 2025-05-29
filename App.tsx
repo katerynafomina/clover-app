@@ -18,39 +18,135 @@ import DayOutfit from './src/screens/DayOutfit';
 import AllPosts from './src/screens/Community/AllPosts';
 import MyPosts from './src/screens/Community/MyPosts';
 import AddPost from './src/screens/Community/AddPost';
+import UserProfileScreen from './src/screens/Community/UserProfile';
+import PostDetailScreen from './src/screens/Community/PostDetail';
+import MyProfileScreen from './src/screens/Profile/MyProfile';
+import EditProfileScreen from './src/screens/Profile/EditProfile';
+import SavedPostsScreen from './src/screens/Profile/SavedPosts';
 
 export type RootStackParamList = {
   HomeStack: undefined;
+  HomeMain: undefined;
   ClosetCategories: undefined;
   AddItemScreen: undefined;
   CategoryDetailsScreen: { category: string };
   Calendar: undefined;
-  DayOutfit: { date: string }; // Додайте параметри, які ви передаєте
+  DayOutfit: { date: string };
   Auth: undefined;
   Register: undefined;
-  Home: undefined; // Додайте це
-    AllPosts: undefined; // Додайте це
-  MyPosts: undefined; // Додайте це 
-  AddPost: undefined; // Додайте це
+  Home: undefined;
+  AllPosts: undefined;
+  MyPosts: undefined;
+  AddPost: undefined;
+  UserProfile: { username: string };
+  PostDetail: { postId: number };
+  MyProfile: undefined;
+  EditProfile: { profile: any };
+  SavedPosts: undefined;
+  HomeTabs: undefined;
 };
-
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
-const ClosetStack = () => {
+// Компонент для іконки користувача в навбарі
+const UserIcon = ({ navigation }: { navigation: any }) => {
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        fetchUserAvatar(session.user.id);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        if (session) {
+          fetchUserAvatar(session.user.id);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchUserAvatar = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', userId)
+        .single();
+
+      if (!error && data?.avatar_url) {
+        let avatarUrl = data.avatar_url;
+        if (!avatarUrl.startsWith('http')) {
+          const { data: avatarData } = await supabase.storage
+            .from('avatars')
+            .getPublicUrl(avatarUrl);
+          
+          if (avatarData) {
+            avatarUrl = avatarData.publicUrl;
+          }
+        }
+        setUserAvatar(avatarUrl);
+      }
+    } catch (error) {
+      console.error('Error fetching user avatar:', error);
+    }
+  };
+
+  return (
+    <Pressable 
+      onPress={() => navigation.navigate('MyProfile')}
+      style={{ marginRight: 15, paddingEnd: 10 }}
+    >
+      {({ pressed }) => (
+        userAvatar ? (
+          <Image
+            source={{ uri: userAvatar }}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              opacity: pressed ? 0.5 : 1,
+            }}
+          />
+        ) : (
+          <AntDesign
+            name="user"
+            size={25}
+            color="black"
+            style={{ opacity: pressed ? 0.5 : 1 }}
+          />
+        )
+      )}
+    </Pressable>
+  );
+};
+
+// Компонент для заголовка з логотипом
+const HeaderLogo = () => (
+  <Image
+    style={{ width: 130, height: 40 }}
+    source={require('./src/assets/logoLight.png')}
+    resizeMode="contain"
+  />
+);
+
+const ClosetStack = ({ navigation }: { navigation: any }) => {
   return (
     <Stack.Navigator>
       <Stack.Screen
         name="ClosetCategories"
         component={ClosetCategories}
         options={{
-           headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-            />),
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
           headerShown: true,
         }}
       />
@@ -58,114 +154,35 @@ const ClosetStack = () => {
         name="AddItemScreen"
         component={AddItemScreen}
         options={{
-           headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-            />),
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
           headerShown: true,
         }}
       />
       <Stack.Screen
         name="CategoryDetailsScreen"
         component={CategoryDetailsScreen}
-        options={({ route }: { route: { params: { category: string } } }) => ({
-          headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-            />),
-          headerShown: true,
-        })}
-      />
-    </Stack.Navigator>
-  );
-
-}
-
-const CalendarStack = () => {
-  return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="Calendar"
-        component={Calendar}
         options={{
-           headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-            />),
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
           headerShown: true,
         }}
       />
-      <Stack.Screen 
-        name='DayOutfit'
-        component={DayOutfit}
+      <Stack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
         options={{
-           headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-            />),
+          headerTitle: HeaderLogo,
           headerShown: true,
         }}
       />
-    </Stack.Navigator>
-  );
 
-}
-
-const CommunityStack = () => {
-  return (
-    <Stack.Navigator>
-      {/* 1. Сторінка з постами всіх користувачів */}
       <Stack.Screen
-        name="AllPosts"
-        component={AllPosts}
+        name="PostDetail"
+        component={PostDetailScreen}
         options={{
-          headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-            />
-          ),
-          headerShown: true,
-        }}
-      />
-      
-      {/* 2. Сторінка з моїми постами */}
-      <Stack.Screen
-        name="MyPosts"
-        component={MyPosts}
-        options={{
-          headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-            />
-          ),
-          headerShown: true,
-        }}
-      />
-      
-      {/* 3. Сторінка для додавання посту */}
-      <Stack.Screen
-        name="AddPost"
-        component={AddPost}
-        options={{
-          headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-            />
-          ),
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
           headerShown: true,
         }}
       />
@@ -173,41 +190,156 @@ const CommunityStack = () => {
   );
 };
 
-
-
-
-const HomeTabs = () => {
+const CalendarStack = ({ navigation }: { navigation: any }) => {
   return (
-    <Tab.Navigator>
-      <Tab.Screen 
-        name="Home" 
+    <Stack.Navigator>
+      <Stack.Screen
+        name="Calendar"
+        component={Calendar}
+        options={{
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen 
+        name='DayOutfit'
+        component={DayOutfit}
+        options={{
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={{
+          headerTitle: HeaderLogo,
+          headerShown: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="PostDetail"
+        component={PostDetailScreen}
+        options={{
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
+          headerShown: true,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+const CommunityStack = ({ navigation }: { navigation: any }) => {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="AllPosts"
+        component={AllPosts}
+        options={{
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
+          headerShown: true,
+        }}
+      />
+      
+      <Stack.Screen
+        name="MyPosts"
+        component={MyPosts}
+        options={{
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
+          headerShown: true,
+        }}
+      />
+      
+      <Stack.Screen
+        name="AddPost"
+        component={AddPost}
+        options={{
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
+          headerShown: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={{
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
+          headerShown: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="PostDetail"
+        component={PostDetailScreen}
+        options={{
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
+          headerShown: true,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+const HomeStack = ({ navigation }: { navigation: any }) => {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen 
+        name="HomeMain" 
         component={Home}
         options={{
-          headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }}
-              source={require('./src/assets/logoLight.png')}
-              resizeMode="contain"
-            />),
-          headerRight: () => (
-            <Pressable onPress={() => supabase.auth.signOut()}>
-              {({ pressed }) => (
-                <AntDesign
-                  name="user"
-                  size={25}
-                  color="black"
-                  style={{ marginRight: 15, paddingEnd: 10, opacity: pressed ? 0.5 : 1 }}
-                />
-              )}
-            </Pressable>
-          ),
+          headerTitle: HeaderLogo,
+          headerRight: () => <UserIcon navigation={navigation} />,
           tabBarIcon: ({ color }) => (
             <AntDesign name="home" size={25} color={color} />
           ),
         }}
       />
-      <Tab.Screen name="Closet"
-        component={ClosetStack}
+      <Stack.Screen
+        name="PostDetail"
+        component={PostDetailScreen}
+        options={{
+          headerTitle: HeaderLogo,
+          headerShown: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={{
+          headerTitle: HeaderLogo,
+          headerShown: true,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+const HomeTabs = ({ navigation }: { navigation: any }) => {
+  return (
+    <Tab.Navigator>
+      <Tab.Screen 
+        name="Home" 
+        children={() => <HomeStack navigation={navigation} />}
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ color }) => (
+            <AntDesign name="home" size={25} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="Closet"
+        children={() => <ClosetStack navigation={navigation} />}
         options={{
           headerShown: false,
           tabBarIcon: ({ color }) => (
@@ -215,8 +347,9 @@ const HomeTabs = () => {
           ),
         }}
       />
-      <Tab.Screen name="Outfits"
-        component={CalendarStack}
+      <Tab.Screen 
+        name="Outfits"
+        children={() => <CalendarStack navigation={navigation} />}
         options={{
           headerShown: false,
           tabBarIcon: ({ color }) => (
@@ -224,12 +357,13 @@ const HomeTabs = () => {
           ),
         }}
       />
-       <Tab.Screen name="Community"
-        component={CommunityStack}
+      <Tab.Screen 
+        name="Community"
+        children={() => <CommunityStack navigation={navigation} />}
         options={{
           headerShown: false,
           tabBarIcon: ({ color }) => (
-            <AntDesign name="calendar" size={25} color={color} />
+            <AntDesign name="team" size={25} color={color} />
           ),
         }}
       />
@@ -242,7 +376,7 @@ export default function App() {
 }
 
 const Layout = () => {
-const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -262,39 +396,78 @@ const [session, setSession] = useState<Session | null>(null);
             <Stack.Screen 
               name="Auth"
               component={Auth}
-              options={{ headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-                />),
-                headerShadowVisible:false
-              }} />
+              options={{ 
+                headerTitle: HeaderLogo,
+                headerShadowVisible: false
+              }} 
+            />
             <Stack.Screen
               name="Register"
               component={Register}
               options={{
-                 headerTitle: () => (
-            <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
-              resizeMode="contain"
-                  />),
-                  headerShadowVisible:false
-              }} />
+                headerTitle: HeaderLogo,
+                headerShadowVisible: false
+              }} 
+            />
           </>
         ) : (
-          <Stack.Screen
-            name="HomeStack"
-            component={HomeTabs}
-            options={
-              {
+          <>
+            <Stack.Screen
+              name="HomeTabs"
+              children={({ navigation }) => <HomeTabs navigation={navigation} />}
+              options={{
                 headerShown: false,
-              }
-            }
-          />
+              }}
+            />
+            {/* Профільні екрани на рівні основного стеку */}
+            <Stack.Screen
+              name="MyProfile"
+              component={MyProfileScreen}
+              options={{
+                headerTitle: HeaderLogo,
+                headerShown: true,
+                presentation: 'modal',
+              }}
+            />
+            
+            <Stack.Screen
+              name="EditProfile"
+              component={EditProfileScreen}
+              options={{
+                headerTitle: HeaderLogo,
+                headerShown: true,
+              }}
+            />
+            
+            <Stack.Screen
+              name="SavedPosts"
+              component={SavedPostsScreen}
+              options={{
+                headerTitle: HeaderLogo,
+                headerShown: true,
+              }}
+            />
+            
+            <Stack.Screen
+              name="PostDetail"
+              component={PostDetailScreen}
+              options={{
+                headerTitle: HeaderLogo,
+                headerShown: true,
+              }}
+            />
+            
+            <Stack.Screen
+              name="UserProfile"
+              component={UserProfileScreen}
+              options={{
+                headerTitle: HeaderLogo,
+                headerShown: true,
+              }}
+            />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
   );
-}
+};

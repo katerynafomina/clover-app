@@ -23,6 +23,14 @@
     },
     "web": {
       "favicon": "./src/assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Додаток потребує доступу до фото для завантаження аватара."
+        }
+      ]
+    ]
   }
 }
