@@ -452,8 +452,6 @@ const DayOutfit = ({ route }: { route: any }) => {
         {/* Секція з образом */}
         <View style={styles.outfitSection}>
           <Text style={styles.outfitTitle}>
-            Образ ({outfitItems.length} елементів)
-            {hasStoredLayout && <Text style={styles.layoutIndicator}> • Збережений layout</Text>}
           </Text>
           
           {isLoading ? (

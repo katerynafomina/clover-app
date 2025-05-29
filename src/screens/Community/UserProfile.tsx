@@ -803,9 +803,17 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
           onPress={(e) => handleLike(item.post_id, e)}
           disabled={item.isLikeLoading}
         >
-          <Text style={[styles.buttonIcon, item.is_liked && styles.activeButtonText]}>
-            {item.isLikeLoading ? '⏳' : (item.is_liked ? '❤️' : '🤍')}
-          </Text>
+          {item.isLikeLoading ? (
+            <ActivityIndicator size="small" color="#1976d2" style={styles.buttonIcon} />
+          ) : (
+            <Image
+              source={item.is_liked 
+                ? require('../../assets/heart_filled.png')
+                : require('../../assets/heart.png')
+              }
+              style={styles.buttonIconImage}
+            />
+          )}
           <Text style={[styles.buttonText, item.is_liked && styles.activeButtonText]}>
             {item.likes_count}
           </Text>
@@ -815,7 +823,10 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
           style={styles.interactionButton}
           onPress={(e) => openCommentsModal(item, e)}
         >
-          <Text style={styles.buttonIcon}>💬</Text>
+          <Image
+            source={require('../../assets/chat-bubble.png')}
+            style={styles.buttonIconImage}
+          />
           <Text style={styles.buttonText}>{item.comments_count}</Text>
         </TouchableOpacity>
 
@@ -828,18 +839,21 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
           onPress={(e) => handleSave(item.post_id, e)}
           disabled={item.isSaveLoading}
         >
-          <Text style={[styles.buttonIcon, item.is_saved && styles.activeButtonText]}>
-            {item.isSaveLoading ? '⏳' : (item.is_saved ? '📥' : '📤')}
-          </Text>
+          {item.isSaveLoading ? (
+            <ActivityIndicator size="small" color="#1976d2" style={styles.buttonIcon} />
+          ) : (
+            <Image
+              source={item.is_saved 
+                ? require('../../assets/save_filled.png')
+                : require('../../assets/save.png')
+              }
+              style={styles.buttonIconImage}
+            />
+          )}
           <Text style={[styles.buttonText, item.is_saved && styles.activeButtonText]}>
             {item.saves_count}
           </Text>
         </TouchableOpacity>
-      </View>
-
-      {/* Індикатор що це кликабельно */}
-      <View style={styles.postIndicator}>
-        <Text style={styles.postIndicatorText}>Натисніть для деталей</Text>
       </View>
     </TouchableOpacity>
   );
@@ -1232,6 +1246,11 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     fontSize: 16,
+    marginRight: 4,
+  },
+  buttonIconImage: {
+    width: 16,
+    height: 16,
     marginRight: 4,
   },
   buttonText: {

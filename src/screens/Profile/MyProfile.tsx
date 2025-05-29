@@ -302,8 +302,20 @@ const MyProfileScreen = () => {
           </View>
           
           <View style={styles.postStats}>
-            <Text style={styles.statText}>❤️ {post.likes_count}</Text>
-            <Text style={styles.statText}>💬 {post.comments_count}</Text>
+            <View style={styles.statItem}>
+              <Image
+                source={require('../../assets/heart.png')}
+                style={styles.statIcon}
+              />
+              <Text style={styles.statText}>{post.likes_count}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Image
+                source={require('../../assets/chat-bubble.png')}
+                style={styles.statIcon}
+              />
+              <Text style={styles.statText}>{post.comments_count}</Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -355,11 +367,11 @@ const MyProfileScreen = () => {
 
       {/* Статистика */}
       <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
+        <View style={styles.statItemContainer}>
           <Text style={styles.statNumber}>{posts.length}</Text>
           <Text style={styles.statLabel}>Постів</Text>
         </View>
-        <TouchableOpacity style={styles.statItem} onPress={navigateToSavedPosts}>
+        <TouchableOpacity style={styles.statItemContainer} onPress={navigateToSavedPosts}>
           <Text style={styles.statNumber}>{savedPostsCount}</Text>
           <Text style={styles.statLabel}>Збережених</Text>
         </TouchableOpacity>
@@ -483,7 +495,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
-  statItem: {
+  statItemContainer: {
     alignItems: 'center',
   },
   statNumber: {
@@ -591,6 +603,15 @@ const styles = StyleSheet.create({
   postStats: {
     flexDirection: 'row',
     gap: 12,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statIcon: {
+    width: 12,
+    height: 12,
   },
   statText: {
     fontSize: 12,

@@ -37,6 +37,8 @@ interface Post {
   likes_count: number;
   saves_count: number;
   comments_count: number;
+  is_liked: boolean;
+  is_saved: boolean;
 }
 
 interface CurrentWeatherData {
@@ -363,26 +365,48 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     try {
       const postsWithStats = await Promise.all(
         data.map(async (post) => {
-          const { count: likesCount } = await supabase
-            .from('likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
-
-          const { count: savesCount } = await supabase
-            .from('saved_posts')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
-
-          const { count: commentsCount } = await supabase
-            .from('comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
+          const [
+            { count: likesCount },
+            { count: savesCount },
+            { count: commentsCount },
+            likeCheck,
+            saveCheck
+          ] = await Promise.all([
+            supabase
+              .from('likes')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', post.id),
+            supabase
+              .from('saved_posts')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', post.id),
+            supabase
+              .from('comments')
+              .select('*', { count: 'exact', head: true })
+              .eq('post_id', post.id),
+            // Перевіряємо, чи лайкнув поточний користувач
+            currentSession?.user?.id ? supabase
+              .from('likes')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', currentSession.user.id)
+              .single() : Promise.resolve({ data: null, error: null }),
+            // Перевіряємо, чи зберіг поточний користувач
+            currentSession?.user?.id ? supabase
+              .from('saved_posts')
+              .select('id')
+              .eq('post_id', post.id)
+              .eq('user_id', currentSession.user.id)
+              .single() : Promise.resolve({ data: null, error: null })
+          ]);
 
           return {
             ...post,
             likes_count: likesCount || 0,
             saves_count: savesCount || 0,
-            comments_count: commentsCount || 0
+            comments_count: commentsCount || 0,
+            is_liked: !likeCheck.error && likeCheck.data !== null,
+            is_saved: !saveCheck.error && saveCheck.data !== null
           };
         })
       );
@@ -391,6 +415,8 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         likes_count: number;
         saves_count: number;
         comments_count: number;
+        is_liked: boolean;
+        is_saved: boolean;
       })[];
       
       const postsWithoutImages: Post[] = rawData?.map(post => ({
@@ -412,7 +438,9 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         })) || [],
         likes_count: post.likes_count,
         saves_count: post.saves_count,
-        comments_count: post.comments_count
+        comments_count: post.comments_count,
+        is_liked: post.is_liked,
+        is_saved: post.is_saved
       })) || [];
 
       const postsWithImages = await Promise.all(
@@ -492,7 +520,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
       onPress={() => navigateToUserProfile(item.username)}
     >
       <Image 
-        source={{ uri: item.avatar_url }} 
+        source={{ uri: item.avatar_url || "" }} 
         style={styles.suggestionAvatar}
         defaultSource={require('../../assets/icon.png')}
       />
@@ -554,21 +582,21 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
             {new Date(item.post_created_at).toLocaleDateString()}
           </Text>
         </View>
-        
-        <View style={styles.weatherInfoCompact}>
-          <View style={styles.weatherDetails}>
-            <Text style={styles.cityText}>{item.city}</Text>
-            <Text style={styles.weatherType}>{item.weather_type}</Text>
-            <Text style={styles.temperature}>
-              {Math.round(item.min_tempurature)}° - {Math.round(item.max_tempurature)}°C
-            </Text>
-          </View>
-          {item.weather_icon && (
+        {item.weather_icon && (
             <Image 
               source={{ uri: `http://openweathermap.org/img/wn/${item.weather_icon}.png` }} 
               style={styles.weatherIcon} 
             />
           )}
+        <View style={styles.weatherInfoCompact}>
+       
+          <View style={styles.weatherDetails}>
+            <Text style={styles.weatherType}>{item.weather_type}</Text>
+            <Text style={styles.temperature}>
+              {Math.round(item.min_tempurature)}°C
+            </Text>
+          </View>
+          
         </View>
       </View>
 
@@ -588,24 +616,34 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
-          <Text style={styles.statIcon}>❤️</Text>
+          <Image
+            source={item.is_liked 
+              ? require('../../assets/heart_filled.png')
+              : require('../../assets/heart.png')
+            }
+            style={styles.statIconImage}
+          />
           <Text style={styles.statText}>{item.likes_count}</Text>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={styles.statIcon}>💬</Text>
+          <Image
+            source={require('../../assets/chat-bubble.png')}
+            style={styles.statIconImage}
+          />
           <Text style={styles.statText}>{item.comments_count}</Text>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={styles.statIcon}>📥</Text>
+          <Image
+            source={item.is_saved 
+              ? require('../../assets/save_filled.png')
+              : require('../../assets/save.png')
+            }
+            style={styles.statIconImage}
+          />
           <Text style={styles.statText}>{item.saves_count}</Text>
         </View>
-      </View>
-
-      {/* Індикатор того, що це натискаємо */}
-      <View style={styles.postIndicator}>
-        <Text style={styles.postIndicatorText}>Натисніть для деталей</Text>
       </View>
     </TouchableOpacity>
   );
@@ -764,13 +802,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   showAllButton: {
-    backgroundColor: '#1976d2',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#000',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 25,
   },
   showAllButtonText: {
-    color: '#fff',
+    color: 'black',
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -780,6 +820,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    alignContent:'flex-start'
   },
   title: {
     fontSize: 24,
@@ -892,11 +933,11 @@ const styles = StyleSheet.create({
   postHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   avatar: {
-    width: 50,
-    height: 50,
+    width: 30,
+    height: 30,
     borderRadius: 25,
     marginRight: 12,
   },
@@ -906,7 +947,7 @@ const styles = StyleSheet.create({
   username: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1976d2',
+    color: '#000',
   },
   postDate: {
     fontSize: 12,
@@ -922,7 +963,7 @@ const styles = StyleSheet.create({
   },
   cityText: {
     fontSize: 10,
-    color: '#1976d2',
+    color: '#000',
     fontWeight: 'bold',
   },
   weatherType: {
@@ -933,7 +974,7 @@ const styles = StyleSheet.create({
   temperature: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#1976d2',
+    color: '#000',
   },
   weatherIcon: {
     width: 40,
@@ -999,6 +1040,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 4,
   },
+  statIconImage: {
+    width: 16,
+    height: 16,
+    marginRight: 4,
+  },
   statText: {
     fontSize: 14,
     color: '#666',
@@ -1022,18 +1068,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 20,
     alignSelf: 'center',
-    backgroundColor: '#1976d2',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#000',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   myPostsButtonText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
   },

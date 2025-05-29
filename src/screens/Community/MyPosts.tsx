@@ -628,9 +628,17 @@ const MyPosts: React.FC = () => {
             onPress={() => handleLike(item.post_id)}
             disabled={item.isLikeLoading}
           >
-            <Text style={[styles.buttonIcon, item.is_liked && styles.activeButtonText]}>
-              {item.isLikeLoading ? '⏳' : (item.is_liked ? '❤️' : '🤍')}
-            </Text>
+            {item.isLikeLoading ? (
+              <ActivityIndicator size="small" color="#1976d2" style={styles.buttonIcon} />
+            ) : (
+              <Image
+                source={item.is_liked 
+                  ? require('../../assets/heart_filled.png')
+                  : require('../../assets/heart.png')
+                }
+                style={styles.buttonIconImage}
+              />
+            )}
             <Text style={[styles.buttonText, item.is_liked && styles.activeButtonText]}>
               {item.likes_count}
             </Text>
@@ -647,9 +655,17 @@ const MyPosts: React.FC = () => {
             onPress={() => handleSave(item.post_id)}
             disabled={item.isSaveLoading}
           >
-            <Text style={[styles.buttonIcon, item.is_saved && styles.activeButtonText]}>
-              {item.isSaveLoading ? '⏳' : (item.is_saved ? '📥' : '📤')}
-            </Text>
+            {item.isSaveLoading ? (
+              <ActivityIndicator size="small" color="#1976d2" style={styles.buttonIcon} />
+            ) : (
+              <Image
+                source={item.is_saved 
+                  ? require('../../assets/save_filled.png')
+                  : require('../../assets/save.png')
+                }
+                style={styles.buttonIconImage}
+              />
+            )}
             <Text style={[styles.buttonText, item.is_saved && styles.activeButtonText]}>
               {item.saves_count}
             </Text>
@@ -877,6 +893,11 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     fontSize: 18,
+    marginRight: 4,
+  },
+  buttonIconImage: {
+    width: 18,
+    height: 18,
     marginRight: 4,
   },
   buttonText: {
