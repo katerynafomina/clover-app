@@ -18,6 +18,7 @@ import DayOutfit from './src/screens/DayOutfit';
 import AllPosts from './src/screens/Community/AllPosts';
 import MyPosts from './src/screens/Community/MyPosts';
 import AddPost from './src/screens/Community/AddPost';
+import UserProfileScreen from './src/screens/Community/UserProfile';
 
 export type RootStackParamList = {
   HomeStack: undefined;
@@ -25,15 +26,15 @@ export type RootStackParamList = {
   AddItemScreen: undefined;
   CategoryDetailsScreen: { category: string };
   Calendar: undefined;
-  DayOutfit: { date: string }; // Додайте параметри, які ви передаєте
+  DayOutfit: { date: string };
   Auth: undefined;
   Register: undefined;
-  Home: undefined; // Додайте це
-    AllPosts: undefined; // Додайте це
-  MyPosts: undefined; // Додайте це 
-  AddPost: undefined; // Додайте це
+  Home: undefined;
+  AllPosts: undefined;
+  MyPosts: undefined;
+  AddPost: undefined;
+  UserProfile: { username: string }; // Додаємо новий екран
 };
-
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
@@ -47,8 +48,8 @@ const ClosetStack = () => {
         options={{
            headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />),
           headerShown: true,
@@ -60,8 +61,8 @@ const ClosetStack = () => {
         options={{
            headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />),
           headerShown: true,
@@ -73,8 +74,8 @@ const ClosetStack = () => {
         options={({ route }: { route: { params: { category: string } } }) => ({
           headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />),
           headerShown: true,
@@ -82,7 +83,6 @@ const ClosetStack = () => {
       />
     </Stack.Navigator>
   );
-
 }
 
 const CalendarStack = () => {
@@ -94,8 +94,8 @@ const CalendarStack = () => {
         options={{
            headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />),
           headerShown: true,
@@ -107,8 +107,8 @@ const CalendarStack = () => {
         options={{
            headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />),
           headerShown: true,
@@ -116,7 +116,6 @@ const CalendarStack = () => {
       />
     </Stack.Navigator>
   );
-
 }
 
 const CommunityStack = () => {
@@ -129,8 +128,8 @@ const CommunityStack = () => {
         options={{
           headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />
           ),
@@ -145,8 +144,8 @@ const CommunityStack = () => {
         options={{
           headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />
           ),
@@ -161,20 +160,33 @@ const CommunityStack = () => {
         options={{
           headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
             />
           ),
           headerShown: true,
         }}
       />
+
+      {/* 4. Сторінка профілю користувача */}
+      <Stack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={({ route }: { route: { params: { username: string } } }) => ({
+          headerTitle: () => (
+            <Image
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
+              resizeMode="contain"
+            />
+          ),
+          headerShown: true,
+        })}
+      />
     </Stack.Navigator>
   );
 };
-
-
-
 
 const HomeTabs = () => {
   return (
@@ -229,7 +241,7 @@ const HomeTabs = () => {
         options={{
           headerShown: false,
           tabBarIcon: ({ color }) => (
-            <AntDesign name="calendar" size={25} color={color} />
+            <AntDesign name="team" size={25} color={color} />
           ),
         }}
       />
@@ -264,8 +276,8 @@ const [session, setSession] = useState<Session | null>(null);
               component={Auth}
               options={{ headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
                 />),
                 headerShadowVisible:false
@@ -276,8 +288,8 @@ const [session, setSession] = useState<Session | null>(null);
               options={{
                  headerTitle: () => (
             <Image
-              style={{ width: 130, height: 40 }} // Set the appropriate dimensions for your logo
-              source={require('./src/assets/logoLight.png')} // Replace this with the path to your logo
+              style={{ width: 130, height: 40 }}
+              source={require('./src/assets/logoLight.png')}
               resizeMode="contain"
                   />),
                   headerShadowVisible:false

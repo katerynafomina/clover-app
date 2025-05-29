@@ -1,6 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Image, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { supabase } from '../../lib/supabase'; // Переконайтеся, що шлях правильний
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  FlatList, 
+  Image, 
+  StyleSheet, 
+  Alert, 
+  ActivityIndicator,
+  TextInput 
+} from 'react-native';
+import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 
 // Інтерфейси для типізації
@@ -9,7 +19,7 @@ interface OutfitItem {
   photo_url: string;
   category: string;
   subcategory: string | null;
-  image?: string; // Додано поле для URL зображення з Storage
+  image?: string;
 }
 
 interface Post {
@@ -26,13 +36,20 @@ interface Post {
   outfit_items: OutfitItem[];
   likes_count: number;
   saves_count: number;
-  is_liked: boolean;
-  is_saved: boolean;
-  isLikeLoading?: boolean; // Додано для відстеження завантаження лайка
-  isSaveLoading?: boolean; // Додано для відстеження завантаження збереження
+  comments_count: number;
 }
 
-// Інтерфейси для результатів запиту Supabase
+interface CurrentWeatherData {
+  temp: number;
+  weather_type: string;
+}
+
+interface UserSuggestion {
+  username: string;
+  avatar_url: string | null;
+  posts_count: number;
+}
+
 interface WardrobeItem {
   id: number;
   photo_url: string;
@@ -58,7 +75,6 @@ interface ProfileData {
   avatar_url: string | null;
 }
 
-// Фактичні типи даних з Supabase, відповідно до формату відповіді
 interface RawOutfitData {
   id: any;
   date: any;
@@ -88,31 +104,36 @@ interface RawPostData {
   id: any;
   created_at: any;
   outfits: RawOutfitData;
-  likes?: any; // Змінено для підтримки різних форматів
-  saved_posts?: any; // Змінено для підтримки різних форматів
-  is_liked?: boolean;
-  is_saved?: boolean;
+  _count?: {
+    likes: number;
+    saved_posts: number;
+    comments: number;
+  };
 }
 
 const DEFAULT_AVATAR_URL = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
 
 const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [allPosts, setAllPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const [currentWeather, setCurrentWeather] = useState<CurrentWeatherData | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
-    // Отримуємо сесію поточного користувача
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      fetchPostsAlternative(session);
+      getCurrentWeatherAndFetchPosts(session);
     });
 
-    // Підписуємось на зміни в сесії
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
-        fetchPostsAlternative(session);
+        getCurrentWeatherAndFetchPosts(session);
       }
     );
 
@@ -121,12 +142,125 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     };
   }, []);
 
-  // Альтернативний метод без RPC функції
-  const fetchPostsAlternative = async (currentSession: Session | null) => {
+  // Фільтрація постів по пошуковому запиту
+  const filteredPosts = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return posts;
+    }
+    
+    return allPosts.filter(post => 
+      post.username.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [posts, allPosts, searchQuery]);
+
+  // Пошук користувачів для автокомпліту
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (searchQuery.length < 2) {
+        setUserSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      try {
+        setSearchLoading(true);
+        
+        // Шукаємо користувачів з постами
+        const { data: users, error } = await supabase
+          .from('profiles')
+          .select(`
+            username,
+            avatar_url,
+            outfits(count)
+          `)
+          .ilike('username', `%${searchQuery}%`)
+          .limit(5);
+
+        if (error) {
+          console.error('Error searching users:', error);
+          return;
+        }
+
+        if (users) {
+          const userSuggestions: UserSuggestion[] = await Promise.all(
+            users
+              .filter(user => user.outfits && user.outfits.length > 0)
+              .map(async (user: any) => {
+                let avatarUrl = user.avatar_url;
+                if (avatarUrl && !avatarUrl.startsWith('http')) {
+                  const { data: avatarData } = await supabase.storage
+                    .from('avatars')
+                    .getPublicUrl(avatarUrl);
+                  
+                  if (avatarData) {
+                    avatarUrl = avatarData.publicUrl;
+                  }
+                }
+
+                return {
+                  username: user.username,
+                  avatar_url: avatarUrl || DEFAULT_AVATAR_URL,
+                  posts_count: user.outfits?.[0]?.count || 0
+                };
+              })
+          );
+
+          setUserSuggestions(userSuggestions);
+          setShowSuggestions(userSuggestions.length > 0);
+        }
+      } catch (error) {
+        console.error('Error in user search:', error);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(searchUsers, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
+  const getCurrentWeatherAndFetchPosts = async (currentSession: Session | null) => {
+    try {
+      const { data: userWeather, error: weatherError } = await supabase
+        .from('weather')
+        .select('weather_type, min_tempurature, max_tempurature')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (weatherError) {
+        console.log('Не вдалося отримати поточну погоду, показуємо всі пости');
+        fetchAllPosts(currentSession);
+        return;
+      }
+
+      if (userWeather) {
+        const avgTemp = (userWeather.min_tempurature + userWeather.max_tempurature) / 2;
+        setCurrentWeather({
+          temp: avgTemp,
+          weather_type: userWeather.weather_type
+        });
+        fetchFilteredPosts(currentSession, avgTemp, userWeather.weather_type);
+      } else {
+        fetchAllPosts(currentSession);
+      }
+    } catch (error) {
+      console.error('Error getting current weather:', error);
+      fetchAllPosts(currentSession);
+    }
+  };
+
+  const fetchFilteredPosts = async (
+    currentSession: Session | null, 
+    userTemp: number, 
+    userWeatherType: string
+  ) => {
     try {
       setLoading(true);
       
-      // Базовий запит з вибором необхідних полів
+      const minTemp = userTemp - 2;
+      const maxTemp = userTemp + 2;
+
       let query = supabase
         .from('posts')
         .select(`
@@ -155,12 +289,62 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
                 subcategory
               )
             )
-          ),
-          likes:likes(count),
-          saved_posts:saved_posts(count)
+          )
+        `)
+        .gte('outfits.weather.min_tempurature', minTemp)
+        .lte('outfits.weather.max_tempurature', maxTemp)
+        .eq('outfits.weather.weather_type', userWeatherType);
+
+      let { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching filtered posts:', error);
+        fetchAllPosts(currentSession);
+        return;
+      }
+
+      await processPosts(data, currentSession, true);
+    } catch (error) {
+      console.error('Error in fetchFilteredPosts:', error);
+      fetchAllPosts(currentSession);
+    }
+  };
+
+  const fetchAllPosts = async (currentSession: Session | null) => {
+    try {
+      setLoading(true);
+      
+      let query = supabase
+        .from('posts')
+        .select(`
+          id,
+          created_at,
+          outfits!inner (
+            id,
+            date,
+            profiles!inner (
+              username,
+              avatar_url
+            ),
+            weather!inner (
+              weather_type,
+              min_tempurature,
+              max_tempurature,
+              weather_icon,
+              date,
+              city
+            ),
+            outfit_item (
+              wardrobe (
+                id,
+                photo_url,
+                category,
+                subcategory
+              )
+            )
+          )
         `);
 
-      // Якщо користувач авторизований, перевіряємо чи вже лайкнуто/збережено пости
       let { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
@@ -169,108 +353,71 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         return;
       }
 
-      // Перевіряємо для кожного поста, чи лайкнув/зберіг його поточний користувач
-      let postsWithUserInteraction = [...data];
-      
-      if (currentSession) {
-        // Отримуємо лайки поточного користувача
-        const { data: userLikes, error: likesError } = await supabase
-          .from('likes')
-          .select('post_id')
-          .eq('user_id', currentSession.user.id);
-          
-        if (likesError) {
-          console.error('Error fetching user likes:', likesError);
-        }
-        
-        // Отримуємо збережені пости поточного користувача
-        const { data: userSaves, error: savesError } = await supabase
-          .from('saved_posts')
-          .select('post_id')
-          .eq('user_id', currentSession.user.id);
-          
-        if (savesError) {
-          console.error('Error fetching user saved posts:', savesError);
-        }
-        
-        // Створюємо множини для швидкого пошуку
-        const likedPostIds = new Set(userLikes?.map(like => like.post_id) || []);
-        const savedPostIds = new Set(userSaves?.map(save => save.post_id) || []);
-        
-        // Додаємо інформацію про взаємодію користувача до кожного поста
-        postsWithUserInteraction = data.map(post => ({
-          ...post,
-          is_liked: likedPostIds.has(post.id),
-          is_saved: savedPostIds.has(post.id)
-        }));
-      }
+      await processPosts(data, currentSession, false);
+    } catch (error) {
+      console.error('Error:', error);
+      Alert.alert('Помилка', 'Щось пішло не так');
+    }
+  };
 
-      // Трансформуємо дані у потрібний формат
-      const rawData = postsWithUserInteraction as unknown as RawPostData[];
-      
-      // Підготовка даних без URL зображень
-      const postsWithoutImages: Post[] = rawData?.map(post => {
-        // Визначаємо кількість лайків та збережень
-        let likesCount = 0;
-        let savesCount = 0;
-        
-        // Перевіряємо різні можливі формати даних від Supabase
-        if (post.likes) {
-          if (typeof post.likes === 'number') {
-            likesCount = post.likes;
-          } else if (Array.isArray(post.likes)) {
-            likesCount = post.likes.length;
-          } else if (typeof post.likes === 'object') {
-            if (post.likes.count !== undefined) {
-              likesCount = post.likes.count;
-            } else if (post.likes.length !== undefined) {
-              likesCount = post.likes.length;
-            }
-          }
-        }
-        
-        if (post.saved_posts) {
-          if (typeof post.saved_posts === 'number') {
-            savesCount = post.saved_posts;
-          } else if (Array.isArray(post.saved_posts)) {
-            savesCount = post.saved_posts.length;
-          } else if (typeof post.saved_posts === 'object') {
-            if (post.saved_posts.count !== undefined) {
-              savesCount = post.saved_posts.count;
-            } else if (post.saved_posts.length !== undefined) {
-              savesCount = post.saved_posts.length;
-            }
-          }
-        }
-        
-        return {
-          post_id: post.id,
-          post_created_at: post.created_at,
-          username: post.outfits.profiles.username,
-          avatar_url: post.outfits.profiles.avatar_url,
-          weather_type: post.outfits.weather.weather_type,
-          min_tempurature: post.outfits.weather.min_tempurature,
-          max_tempurature: post.outfits.weather.max_tempurature,
-          weather_icon: post.outfits.weather.weather_icon,
-          weather_date: post.outfits.weather.date,
-          city: post.outfits.weather.city,
-          outfit_items: post.outfits.outfit_item?.map(item => ({
-            item_id: item.wardrobe.id,
-            photo_url: item.wardrobe.photo_url,
-            category: item.wardrobe.category,
-            subcategory: item.wardrobe.subcategory
-          })) || [],
-          likes_count: likesCount,
-          saves_count: savesCount,
-          is_liked: post.is_liked || false,
-          is_saved: post.is_saved || false
-        };
-      }) || [];
+  const processPosts = async (data: any[], currentSession: Session | null, isFiltered: boolean = false) => {
+    try {
+      const postsWithStats = await Promise.all(
+        data.map(async (post) => {
+          const { count: likesCount } = await supabase
+            .from('likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
 
-      // Завантаження URL зображень для кожного поста
+          const { count: savesCount } = await supabase
+            .from('saved_posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          const { count: commentsCount } = await supabase
+            .from('comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', post.id);
+
+          return {
+            ...post,
+            likes_count: likesCount || 0,
+            saves_count: savesCount || 0,
+            comments_count: commentsCount || 0
+          };
+        })
+      );
+
+      const rawData = postsWithStats as unknown as (RawPostData & {
+        likes_count: number;
+        saves_count: number;
+        comments_count: number;
+      })[];
+      
+      const postsWithoutImages: Post[] = rawData?.map(post => ({
+        post_id: post.id,
+        post_created_at: post.created_at,
+        username: post.outfits.profiles.username,
+        avatar_url: post.outfits.profiles.avatar_url,
+        weather_type: post.outfits.weather.weather_type,
+        min_tempurature: post.outfits.weather.min_tempurature,
+        max_tempurature: post.outfits.weather.max_tempurature,
+        weather_icon: post.outfits.weather.weather_icon,
+        weather_date: post.outfits.weather.date,
+        city: post.outfits.weather.city,
+        outfit_items: post.outfits.outfit_item?.map(item => ({
+          item_id: item.wardrobe.id,
+          photo_url: item.wardrobe.photo_url,
+          category: item.wardrobe.category,
+          subcategory: item.wardrobe.subcategory
+        })) || [],
+        likes_count: post.likes_count,
+        saves_count: post.saves_count,
+        comments_count: post.comments_count
+      })) || [];
+
       const postsWithImages = await Promise.all(
         postsWithoutImages.map(async (post) => {
-          // Завантаження URL аватара, якщо він є
           let avatarUrl = post.avatar_url;
           if (avatarUrl && !avatarUrl.startsWith('http')) {
             const { data: avatarData } = await supabase.storage
@@ -282,7 +429,6 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
             }
           }
 
-          // Завантаження URL для кожного елемента одягу
           const outfitItemsWithImages = await Promise.all(
             post.outfit_items.map(async (item) => {
               if (!item.photo_url) {
@@ -296,7 +442,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
               return {
                 ...item,
                 photo_url: imageData?.publicUrl || item.photo_url,
-                image: imageData?.publicUrl // Додаткове поле для сумісності з DayOutfit
+                image: imageData?.publicUrl
               };
             })
           );
@@ -310,219 +456,50 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
       );
 
       setPosts(postsWithImages);
+      if (!isFiltered || !searchQuery) {
+        setAllPosts(postsWithImages);
+      }
     } catch (error) {
-      console.error('Error:', error);
-      Alert.alert('Помилка', 'Щось пішло не так');
+      console.error('Error processing posts:', error);
+      Alert.alert('Помилка', 'Щось пішло не так при обробці постів');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLike = async (postId: number) => {
-    if (!session) {
-      Alert.alert('Увага', 'Щоб поставити лайк, необхідно увійти в систему');
-      navigation.navigate('Login');
-      return;
-    }
-
-    try {
-      // Знаходимо пост, який лайкаємо
-      const post = posts.find(p => p.post_id === postId);
-      if (!post) return;
-
-      // Визначаємо, чи вже лайкнутий пост
-      const isLiked = post.is_liked;
-
-      // Встановлюємо індикатор завантаження для кнопки
-      setPosts(currentPosts => 
-        currentPosts.map(p => 
-          p.post_id === postId 
-            ? { ...p, isLikeLoading: true }
-            : p
-        )
-      );
-
-      if (isLiked) {
-        // Видаляємо лайк з бази даних
-        const { error } = await supabase
-          .from('likes')
-          .delete()
-          .eq('user_id', session.user.id)
-          .eq('post_id', postId);
-
-        if (error) {
-          console.error('Error removing like:', error);
-          Alert.alert('Помилка', 'Не вдалося видалити лайк');
-          
-          // Знімаємо індикатор завантаження
-          setPosts(currentPosts => 
-            currentPosts.map(p => 
-              p.post_id === postId 
-                ? { ...p, isLikeLoading: false }
-                : p
-            )
-          );
-          return;
-        }
-        
-        // Після успішного видалення оновлюємо стан
-        setPosts(currentPosts => 
-          currentPosts.map(p => 
-            p.post_id === postId 
-              ? { 
-                  ...p, 
-                  is_liked: false, 
-                  likes_count: p.likes_count > 0 ? p.likes_count - 1 : 0,
-                  isLikeLoading: false
-                }
-              : p
-          )
-        );
-      } else {
-        // Додаємо лайк до бази даних
-        const { error } = await supabase
-          .from('likes')
-          .insert([
-            { user_id: session.user.id, post_id: postId }
-          ]);
-
-        if (error) {
-          console.error('Error adding like:', error);
-          Alert.alert('Помилка', 'Не вдалося додати лайк');
-          
-          // Знімаємо індикатор завантаження
-          setPosts(currentPosts => 
-            currentPosts.map(p => 
-              p.post_id === postId 
-                ? { ...p, isLikeLoading: false }
-                : p
-            )
-          );
-          return;
-        }
-        
-        // Після успішного додавання оновлюємо стан
-        setPosts(currentPosts => 
-          currentPosts.map(p => 
-            p.post_id === postId 
-              ? { 
-                  ...p, 
-                  is_liked: true, 
-                  likes_count: p.likes_count + 1,
-                  isLikeLoading: false
-                }
-              : p
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Error handling like:', error);
-      Alert.alert('Помилка', 'Щось пішло не так при обробці лайка');
-    }
+  // Навігація до профілю користувача
+  const navigateToUserProfile = (username: string) => {
+    navigation.navigate('UserProfile', { username });
   };
 
-  const handleSave = async (postId: number) => {
-    if (!session) {
-      Alert.alert('Увага', 'Щоб зберегти пост, необхідно увійти в систему');
-      navigation.navigate('Login');
-      return;
-    }
-
-    try {
-      // Знаходимо пост, який зберігаємо
-      const post = posts.find(p => p.post_id === postId);
-      if (!post) return;
-
-      // Визначаємо, чи вже збережений пост
-      const isSaved = post.is_saved;
-
-      // Встановлюємо індикатор завантаження для кнопки
-      setPosts(currentPosts => 
-        currentPosts.map(p => 
-          p.post_id === postId 
-            ? { ...p, isSaveLoading: true }
-            : p
-        )
-      );
-
-      if (isSaved) {
-        // Видаляємо з збережених в базі даних
-        const { error } = await supabase
-          .from('saved_posts')
-          .delete()
-          .eq('user_id', session.user.id)
-          .eq('post_id', postId);
-
-        if (error) {
-          console.error('Error removing from saved:', error);
-          Alert.alert('Помилка', 'Не вдалося видалити пост зі збережених');
-          
-          // Знімаємо індикатор завантаження
-          setPosts(currentPosts => 
-            currentPosts.map(p => 
-              p.post_id === postId 
-                ? { ...p, isSaveLoading: false }
-                : p
-            )
-          );
-          return;
-        }
-        
-        // Після успішного видалення оновлюємо стан
-        setPosts(currentPosts => 
-          currentPosts.map(p => 
-            p.post_id === postId 
-              ? { 
-                  ...p, 
-                  is_saved: false, 
-                  saves_count: p.saves_count > 0 ? p.saves_count - 1 : 0,
-                  isSaveLoading: false
-                }
-              : p
-          )
-        );
-      } else {
-        // Додаємо до збережених в базі даних
-        const { error } = await supabase
-          .from('saved_posts')
-          .insert([
-            { user_id: session.user.id, post_id: postId }
-          ]);
-
-        if (error) {
-          console.error('Error adding to saved:', error);
-          Alert.alert('Помилка', 'Не вдалося додати пост до збережених');
-          
-          // Знімаємо індикатор завантаження
-          setPosts(currentPosts => 
-            currentPosts.map(p => 
-              p.post_id === postId 
-                ? { ...p, isSaveLoading: false }
-                : p
-            )
-          );
-          return;
-        }
-        
-        // Після успішного додавання оновлюємо стан
-        setPosts(currentPosts => 
-          currentPosts.map(p => 
-            p.post_id === postId 
-              ? { 
-                  ...p, 
-                  is_saved: true, 
-                  saves_count: p.saves_count + 1,
-                  isSaveLoading: false
-                }
-              : p
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Error handling save:', error);
-      Alert.alert('Помилка', 'Щось пішло не так при обробці збереження');
-    }
+  const selectUser = (username: string) => {
+    setSearchQuery(username);
+    setShowSuggestions(false);
+    // Можемо також одразу перейти на профіль
+    // navigateToUserProfile(username);
   };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setShowSuggestions(false);
+  };
+
+  const renderUserSuggestion = ({ item }: { item: UserSuggestion }) => (
+    <TouchableOpacity 
+      style={styles.suggestionItem}
+      onPress={() => navigateToUserProfile(item.username)} // Переходимо на профіль
+    >
+      <Image 
+        source={{ uri: item.avatar_url }} 
+        style={styles.suggestionAvatar}
+        defaultSource={require('../../assets/icon.png')}
+      />
+      <View style={styles.suggestionInfo}>
+        <Text style={styles.suggestionUsername}>{item.username}</Text>
+        <Text style={styles.suggestionPostsCount}>{item.posts_count} постів</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   const renderOutfitItem = ({ item }: { item: OutfitItem }) => (
     <View style={styles.outfitItem}>
@@ -540,42 +517,46 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const renderPost = ({ item }: { item: Post }) => (
     <View style={styles.postContainer}>
-      {/* Заголовок поста з інформацією про користувача */}
       <View style={styles.postHeader}>
-        <Image 
-          source={{ 
-            uri: item.avatar_url || DEFAULT_AVATAR_URL
-          }} 
-          style={styles.avatar} 
-          defaultSource={require('../../assets/icon.png')}
-        />
+        {/* Аватар з навігацією */}
+        <TouchableOpacity onPress={() => navigateToUserProfile(item.username)}>
+          <Image 
+            source={{ 
+              uri: item.avatar_url || DEFAULT_AVATAR_URL
+            }} 
+            style={styles.avatar} 
+            defaultSource={require('../../assets/icon.png')}
+          />
+        </TouchableOpacity>
+        
         <View style={styles.userInfo}>
-          <Text style={styles.username}>{item.username}</Text>
+          {/* Ім'я користувача з навігацією */}
+          <TouchableOpacity onPress={() => navigateToUserProfile(item.username)}>
+            <Text style={styles.username}>{item.username}</Text>
+          </TouchableOpacity>
           <Text style={styles.postDate}>
             {new Date(item.post_created_at).toLocaleDateString()}
           </Text>
         </View>
-      </View>
-
-      {/* Інформація про погоду */}
-      <View style={styles.weatherInfo}>
-        <Text style={styles.weatherTitle}>Погода в {item.city}</Text>
-        <View style={styles.weatherDetails}>
-          <Text style={styles.weatherType}>{item.weather_type}</Text>
-          <Text style={styles.temperature}>
-            {Math.round(item.min_tempurature)}° - {Math.round(item.max_tempurature)}°C
-          </Text>
+        
+        <View style={styles.weatherInfoCompact}>
+          <View style={styles.weatherDetails}>
+            <Text style={styles.cityText}>{item.city}</Text>
+            <Text style={styles.weatherType}>{item.weather_type}</Text>
+            <Text style={styles.temperature}>
+              {Math.round(item.min_tempurature)}° - {Math.round(item.max_tempurature)}°C
+            </Text>
+          </View>
+          {item.weather_icon && (
+            <Image 
+              source={{ uri: `http://openweathermap.org/img/wn/${item.weather_icon}.png` }} 
+              style={styles.weatherIcon} 
+            />
+          )}
         </View>
-        {item.weather_icon && (
-          <Image 
-            source={{ uri: `http://openweathermap.org/img/wn/${item.weather_icon}.png` }} 
-            style={{ width: 50, height: 50, alignSelf: 'center' }} 
-          />
-        )}
       </View>
 
-      {/* Одяг */}
-      <View style={styles.outfitSection}>
+      <View style={styles.outfitSectionMain}>
         <Text style={styles.outfitTitle}>Образ:</Text>
         <FlatList
           data={item.outfit_items}
@@ -584,46 +565,24 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.outfitList}
+          contentContainerStyle={styles.outfitListContent}
         />
       </View>
 
-      <View style={styles.interactionButtons}>
-        <View style={styles.interactionButtonGroup}>
-          <TouchableOpacity 
-            style={[
-              styles.interactionButton, 
-              item.is_liked && styles.activeButton,
-              item.isLikeLoading && styles.loadingButton
-            ]}
-            onPress={() => handleLike(item.post_id)}
-            disabled={item.isLikeLoading}
-          >
-            <Text style={[styles.buttonIcon, item.is_liked && styles.activeButtonText]}>
-              {item.isLikeLoading ? '⏳' : (item.is_liked ? '❤️' : '🤍')}
-            </Text>
-            <Text style={[styles.buttonText, item.is_liked && styles.activeButtonText]}>
-              {item.likes_count}
-            </Text>
-          </TouchableOpacity>
+      <View style={styles.statsContainer}>
+        <View style={styles.statItem}>
+          <Text style={styles.statIcon}>❤️</Text>
+          <Text style={styles.statText}>{item.likes_count}</Text>
         </View>
 
-        <View style={styles.interactionButtonGroup}>
-          <TouchableOpacity 
-            style={[
-              styles.interactionButton, 
-              item.is_saved && styles.activeButton,
-              item.isSaveLoading && styles.loadingButton
-            ]}
-            onPress={() => handleSave(item.post_id)}
-            disabled={item.isSaveLoading}
-          >
-            <Text style={[styles.buttonIcon, item.is_saved && styles.activeButtonText]}>
-              {item.isSaveLoading ? '⏳' : (item.is_saved ? '📥' : '📤')}
-            </Text>
-            <Text style={[styles.buttonText, item.is_saved && styles.activeButtonText]}>
-              {item.saves_count}
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.statItem}>
+          <Text style={styles.statIcon}>💬</Text>
+          <Text style={styles.statText}>{item.comments_count}</Text>
+        </View>
+
+        <View style={styles.statItem}>
+          <Text style={styles.statIcon}>📥</Text>
+          <Text style={styles.statText}>{item.saves_count}</Text>
         </View>
       </View>
     </View>
@@ -634,31 +593,113 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0000ff" />
         <Text>Завантаження постів...</Text>
+        {currentWeather && (
+          <Text style={styles.filterInfo}>
+            Фільтруємо по температурі: {Math.round(currentWeather.temp)}°C (±2°) та погоді: {currentWeather.weather_type}
+          </Text>
+        )}
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Всі пости</Text>
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>Всі пости</Text>
+        {currentWeather && (
+          <Text style={styles.filterSubtitle}>
+            Схожа погода: {Math.round(currentWeather.temp)}°C, {currentWeather.weather_type}
+          </Text>
+        )}
+        
+        {/* Пошук по користувачах */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Пошук по користувачах..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity 
+                style={styles.clearButton}
+                onPress={clearSearch}
+              >
+                <Text style={styles.clearButtonText}>✕</Text>
+              </TouchableOpacity>
+            )}
+            {searchLoading && (
+              <ActivityIndicator 
+                size="small" 
+                color="#1976d2" 
+                style={styles.searchLoader}
+              />
+            )}
+          </View>
+          
+          {/* Автокомпліт */}
+          {showSuggestions && userSuggestions.length > 0 && (
+            <View style={styles.suggestionsContainer}>
+              <FlatList
+                data={userSuggestions}
+                renderItem={renderUserSuggestion}
+                keyExtractor={(item) => item.username}
+                style={styles.suggestionsList}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Результати пошуку */}
+        {searchQuery && (
+          <Text style={styles.searchResults}>
+            Знайдено {filteredPosts.length} постів
+            {filteredPosts.length > 0 && ` від користувача "${searchQuery}"`}
+          </Text>
+        )}
+      </View>
+      
       <FlatList
-        data={posts}
+        data={filteredPosts}
         renderItem={renderPost}
         keyExtractor={(item) => item.post_id.toString()}
         refreshing={loading}
-        onRefresh={() => fetchPostsAlternative(session)}
+        onRefresh={() => getCurrentWeatherAndFetchPosts(session)}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={posts.length === 0 ? { 
+        contentContainerStyle={filteredPosts.length === 0 ? { 
           flex: 1, 
           justifyContent: 'center', 
           alignItems: 'center' 
         } : undefined}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Поки немає жодних постів у спільноті</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery 
+                ? `Немає постів від користувача "${searchQuery}"` 
+                : (currentWeather 
+                  ? 'Немає постів з подібною погодою' 
+                  : 'Поки немає жодних постів у спільноті'
+                )}
+            </Text>
+            {(currentWeather || searchQuery) && (
+              <TouchableOpacity 
+                style={styles.showAllButton}
+                onPress={() => {
+                  setCurrentWeather(null);
+                  setSearchQuery('');
+                  fetchAllPosts(session);
+                }}
+              >
+                <Text style={styles.showAllButtonText}>Показати всі пости</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
+        onScrollBeginDrag={() => setShowSuggestions(false)}
       />
+      
       <TouchableOpacity
         style={styles.myPostsButton}
         onPress={() => navigation.navigate('MyPosts')}
@@ -680,6 +721,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
     gap: 16,
+    paddingHorizontal: 20,
+  },
+  filterInfo: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 10,
   },
   emptyContainer: {
     flex: 1,
@@ -691,13 +739,120 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  showAllButton: {
+    backgroundColor: '#1976d2',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+  },
+  showAllButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  titleContainer: {
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
-    paddingVertical: 16,
+    marginBottom: 4,
+  },
+  filterSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  searchContainer: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f8f8',
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  clearButtonText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  searchLoader: {
+    marginLeft: 8,
+  },
+  suggestionsContainer: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
     backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    marginTop: 4,
+    maxHeight: 200,
+    zIndex: 1001,
+  },
+  suggestionsList: {
+    maxHeight: 200,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  suggestionAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  suggestionInfo: {
+    flex: 1,
+  },
+  suggestionUsername: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  suggestionPostsCount: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  searchResults: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   postContainer: {
     backgroundColor: '#fff',
@@ -714,7 +869,7 @@ const styles = StyleSheet.create({
   postHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   avatar: {
     width: 50,
@@ -728,115 +883,102 @@ const styles = StyleSheet.create({
   username: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1976d2', // Зміна кольору для вказівки на можливість натискання
   },
   postDate: {
     fontSize: 12,
     color: '#666',
     marginTop: 2,
   },
-  weatherInfo: {
-    backgroundColor: '#e3f2fd',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  weatherTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1976d2',
-    marginBottom: 4,
+  weatherInfoCompact: {
+    alignItems: 'center',
+    marginLeft: 12,
   },
   weatherDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
+  cityText: {
+    fontSize: 10,
+    color: '#1976d2',
+    fontWeight: 'bold',
+  },
   weatherType: {
-    fontSize: 16,
+    fontSize: 11,
     color: '#333',
     textTransform: 'capitalize',
   },
   temperature: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#1976d2',
   },
   weatherIcon: {
-    fontSize: 24,
-    textAlign: 'center',
+    width: 40,
+    height: 40,
     marginTop: 4,
   },
-  outfitSection: {
-    marginBottom: 12,
+  outfitSectionMain: {
+    marginBottom: 16,
+    minHeight: 120,
   },
   outfitTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   outfitList: {
     flexGrow: 0,
   },
+  outfitListContent: {
+    paddingVertical: 8,
+  },
   outfitItem: {
-    marginRight: 12,
+    marginRight: 16,
     alignItems: 'center',
-    width: 80,
+    width: 90,
   },
   outfitImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginBottom: 4,
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   outfitCategory: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
   },
   outfitSubcategory: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#666',
     textAlign: 'center',
+    marginTop: 2,
   },
-  interactionButtons: {
+  statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
   },
-  interactionButtonGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  interactionButton: {
+  statItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 8,
     borderRadius: 20,
     backgroundColor: '#f8f8f8',
-    marginRight: 8,
+    minWidth: 60,
+    justifyContent: 'center',
   },
-  activeButton: {
-    backgroundColor: '#e3f2fd',
-  },
-  loadingButton: {
-    backgroundColor: '#f0f0f0',
-    opacity: 0.7,
-  },
-  buttonIcon: {
-    fontSize: 18,
+  statIcon: {
+    fontSize: 16,
     marginRight: 4,
   },
-  buttonText: {
+  statText: {
     fontSize: 14,
     color: '#666',
-  },
-  activeButtonText: {
-    color: '#1976d2',
     fontWeight: '500',
   },
   myPostsButton: {
