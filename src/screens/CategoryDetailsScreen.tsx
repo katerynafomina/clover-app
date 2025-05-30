@@ -250,7 +250,7 @@ const CategoryDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                 {item.isDeleting ? (
                     <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                    <Text >🗑️</Text>
+                    <Image source={require('../assets/bin.png')} style={{width:16, height:16}} />
                 )}
             </TouchableOpacity>
             

@@ -682,7 +682,7 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
     <View key={comment.id} style={styles.commentItem}>
       <TouchableOpacity onPress={() => navigateToUserProfile(comment.user.username)}>
         <Image 
-          source={{ uri: comment.user.avatar_url }} 
+          source={{ uri: comment.user.avatar_url || " "}} 
           style={styles.commentAvatar}
           defaultSource={require('../../assets/icon.png')}
         />
@@ -738,7 +738,7 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
           onPress={() => navigateToUserProfile(post.username)}
         >
           <Image 
-            source={{ uri: post.avatar_url }} 
+            source={{ uri: post.avatar_url || "" }} 
             style={styles.userAvatar}
             defaultSource={require('../../assets/icon.png')}
           />
@@ -831,9 +831,17 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
           onPress={handleLike}
           disabled={post.isLikeLoading}
         >
-          <Text style={[styles.buttonIcon, post.is_liked && styles.activeButtonText]}>
-            {post.isLikeLoading ? '⏳' : (post.is_liked ? '❤️' : '🤍')}
-          </Text>
+          {post.isLikeLoading ? (
+            <ActivityIndicator size="small" color="#1976d2" style={styles.buttonIcon} />
+          ) : (
+            <Image
+              source={post.is_liked 
+                ? require('../../assets/heart_filled.png')
+                : require('../../assets/heart.png')
+              }
+              style={styles.buttonIconImage}
+            />
+          )}
           <Text style={[styles.buttonText, post.is_liked && styles.activeButtonText]}>
             {post.likes_count} лайків
           </Text>
@@ -848,9 +856,17 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
           onPress={handleSave}
           disabled={post.isSaveLoading}
         >
-          <Text style={[styles.buttonIcon, post.is_saved && styles.activeButtonText]}>
-            {post.isSaveLoading ? '⏳' : (post.is_saved ? '📥' : '📤')}
-          </Text>
+          {post.isSaveLoading ? (
+            <ActivityIndicator size="small" color="#1976d2" style={styles.buttonIcon} />
+          ) : (
+            <Image
+              source={post.is_saved 
+                ? require('../../assets/save_filled.png')
+                : require('../../assets/save.png')
+              }
+              style={styles.buttonIconImage}
+            />
+          )}
           <Text style={[styles.buttonText, post.is_saved && styles.activeButtonText]}>
             {post.saves_count} збережень
           </Text>
@@ -859,9 +875,15 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
 
       {/* Секція коментарів */}
       <View style={styles.commentsSection}>
-        <Text style={styles.commentsTitle}>
-          Коментарі ({post.comments_count})
-        </Text>
+        <View style={styles.commentsSectionHeader}>
+          <Image
+            source={require('../../assets/chat-bubble.png')}
+            style={styles.commentsSectionIcon}
+          />
+          <Text style={styles.commentsTitle}>
+            Коментарі ({post.comments_count})
+          </Text>
+        </View>
 
         {/* Поле для додавання коментаря */}
         {session && (
@@ -1204,6 +1226,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     marginRight: 8,
   },
+  buttonIconImage: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
+  },
   buttonText: {
     fontSize: 14,
     color: '#666',
@@ -1225,11 +1252,20 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  commentsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  commentsSectionIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
+  },
   commentsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 16,
   },
   addCommentSection: {
     flexDirection: 'row',

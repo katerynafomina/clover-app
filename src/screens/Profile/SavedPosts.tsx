@@ -214,7 +214,10 @@ const SavedPostsScreen = () => {
               unsavePost(post.id);
             }}
           >
-            <Text style={styles.unsaveButtonText}>📤</Text>
+            <Image
+              source={require('../../assets/save_filled.png')}
+              style={styles.unsaveButtonIcon}
+            />
           </TouchableOpacity>
         </View>
 
@@ -274,7 +277,10 @@ const SavedPostsScreen = () => {
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📥</Text>
+          <Image
+            source={require('../../assets/save.png')}
+            style={styles.emptyIcon}
+          />
           <Text style={styles.emptyTitle}>Немає збережених постів</Text>
           <Text style={styles.emptyDescription}>
             Збережіть цікаві образи, щоб переглянути їх пізніше
@@ -349,9 +355,14 @@ const styles = StyleSheet.create({
   },
   unsaveButton: {
     padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f8f8f8',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  unsaveButtonText: {
-    fontSize: 20,
+  unsaveButtonIcon: {
+    width: 20,
+    height: 20,
   },
   postImageContainer: {
     aspectRatio: 16/9,
@@ -403,8 +414,10 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyIcon: {
-    fontSize: 64,
+    width: 64,
+    height: 64,
     marginBottom: 20,
+    opacity: 0.6,
   },
   emptyTitle: {
     fontSize: 20,
