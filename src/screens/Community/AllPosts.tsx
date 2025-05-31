@@ -39,6 +39,7 @@ interface Post {
   comments_count: number;
   is_liked: boolean;
   is_saved: boolean;
+  popularity_score: number; // Новий рейтинг популярності
 }
 
 interface CurrentWeatherData {
@@ -113,11 +114,14 @@ interface RawPostData {
   };
 }
 
+type TabType = 'all' | 'following';
+
 const DEFAULT_AVATAR_URL = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
 
 const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [allPosts, setAllPosts] = useState<Post[]>([]);
+  const [followingPosts, setFollowingPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [currentWeather, setCurrentWeather] = useState<CurrentWeatherData | null>(null);
@@ -125,16 +129,24 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [followingUserIds, setFollowingUserIds] = useState<string[]>([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) {
+        fetchFollowingUsers(session.user.id);
+      }
       getCurrentWeatherAndFetchPosts(session);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
+        if (session) {
+          fetchFollowingUsers(session.user.id);
+        }
         getCurrentWeatherAndFetchPosts(session);
       }
     );
@@ -144,16 +156,38 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     };
   }, []);
 
-  // Фільтрація постів по пошуковому запиту
+  // Отримання списку користувачів, на яких підписаний поточний користувач
+  const fetchFollowingUsers = async (currentUserId: string) => {
+    try {
+      const { data: followingData, error } = await supabase
+        .from('followers')
+        .select('following_id')
+        .eq('follower_id', currentUserId);
+
+      if (error) {
+        console.error('Error fetching following users:', error);
+        return;
+      }
+
+      const userIds = followingData?.map(item => item.following_id) || [];
+      setFollowingUserIds(userIds);
+    } catch (error) {
+      console.error('Error in fetchFollowingUsers:', error);
+    }
+  };
+
+  // Фільтрація постів по пошуковому запиту та активній вкладці
   const filteredPosts = useMemo(() => {
+    let currentPosts = activeTab === 'following' ? followingPosts : posts;
+    
     if (!searchQuery.trim()) {
-      return posts;
+      return currentPosts;
     }
     
     return allPosts.filter(post => 
       post.username.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [posts, allPosts, searchQuery]);
+  }, [posts, followingPosts, allPosts, searchQuery, activeTab]);
 
   // Пошук користувачів для автокомпліту
   useEffect(() => {
@@ -270,6 +304,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           outfits!inner (
             id,
             date,
+            user_id,
             profiles!inner (
               username,
               avatar_url
@@ -323,6 +358,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           outfits!inner (
             id,
             date,
+            user_id,
             profiles!inner (
               username,
               avatar_url
@@ -400,13 +436,17 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
               .single() : Promise.resolve({ data: null, error: null })
           ]);
 
+          // Рахуємо популярність: лайки * 3 + коментарі * 2 + збереження * 1
+          const popularityScore = (likesCount || 0) * 3 + (commentsCount || 0) * 2 + (savesCount || 0) * 1;
+
           return {
             ...post,
             likes_count: likesCount || 0,
             saves_count: savesCount || 0,
             comments_count: commentsCount || 0,
             is_liked: !likeCheck.error && likeCheck.data !== null,
-            is_saved: !saveCheck.error && saveCheck.data !== null
+            is_saved: !saveCheck.error && saveCheck.data !== null,
+            popularity_score: popularityScore
           };
         })
       );
@@ -417,6 +457,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         comments_count: number;
         is_liked: boolean;
         is_saved: boolean;
+        popularity_score: number;
       })[];
       
       const postsWithoutImages: Post[] = rawData?.map(post => ({
@@ -440,7 +481,8 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         saves_count: post.saves_count,
         comments_count: post.comments_count,
         is_liked: post.is_liked,
-        is_saved: post.is_saved
+        is_saved: post.is_saved,
+        popularity_score: post.popularity_score
       })) || [];
 
       const postsWithImages = await Promise.all(
@@ -482,9 +524,24 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         })
       );
 
-      setPosts(postsWithImages);
+      // Сортуємо пости за популярністю (від найпопулярніших до менш популярних)
+      const sortedPosts = postsWithImages.sort((a, b) => b.popularity_score - a.popularity_score);
+
+      setPosts(sortedPosts);
       if (!isFiltered || !searchQuery) {
-        setAllPosts(postsWithImages);
+        setAllPosts(sortedPosts);
+        
+        // Фільтруємо пости тільки від підписок
+        if (followingUserIds.length > 0) {
+          const followingOnlyPosts = sortedPosts.filter(post => {
+            // Отримуємо user_id з даних поста
+            const originalPostData = rawData.find(raw => raw.id === post.post_id);
+            return originalPostData && followingUserIds.includes(originalPostData.outfits.user_id);
+          });
+          setFollowingPosts(followingOnlyPosts);
+        } else {
+          setFollowingPosts([]);
+        }
       }
     } catch (error) {
       console.error('Error processing posts:', error);
@@ -492,6 +549,13 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Перемикання вкладок
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    setSearchQuery(''); // Очищаємо пошук при зміні вкладки
+    setShowSuggestions(false);
   };
 
   // Навігація до профілю користувача
@@ -555,7 +619,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         {/* Аватар з навігацією до профілю */}
         <TouchableOpacity 
           onPress={(e) => {
-            e.stopPropagation(); // Зупиняємо поширення події
+            e.stopPropagation();
             navigateToUserProfile(item.username);
           }}
         >
@@ -589,14 +653,12 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
             />
           )}
         <View style={styles.weatherInfoCompact}>
-       
           <View style={styles.weatherDetails}>
             <Text style={styles.weatherType}>{item.weather_type}</Text>
             <Text style={styles.temperature}>
               {Math.round(item.min_tempurature)}°C
             </Text>
           </View>
-          
         </View>
       </View>
 
@@ -610,7 +672,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           showsHorizontalScrollIndicator={false}
           style={styles.outfitList}
           contentContainerStyle={styles.outfitListContent}
-          scrollEnabled={false} // Вимикаємо скрол, щоб не заважав натисканню на пост
+          scrollEnabled={false}
         />
       </View>
 
@@ -645,6 +707,13 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Text style={styles.statText}>{item.saves_count}</Text>
         </View>
       </View>
+
+      {/* Індикатор популярності для топ-постів */}
+      {item.popularity_score > 10 && (
+        <View style={styles.popularityIndicator}>
+          <Text style={styles.popularityText}>🔥 {item.popularity_score}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -665,13 +734,46 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.titleContainer}>
-        <Text style={styles.title}>Всі пости</Text>
+        <Text style={styles.title}>Стрічка постів</Text>
         {currentWeather && (
           <Text style={styles.filterSubtitle}>
             Схожа погода: {Math.round(currentWeather.temp)}°C, {currentWeather.weather_type}
           </Text>
         )}
         
+        {/* Система вкладок */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'all' && styles.activeTabButton
+            ]}
+            onPress={() => handleTabChange('all')}
+          >
+            <Text style={[
+              styles.tabButtonText,
+              activeTab === 'all' && styles.activeTabButtonText
+            ]}>
+              Всі пости
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'following' && styles.activeTabButton
+            ]}
+            onPress={() => handleTabChange('following')}
+          >
+            <Text style={[
+              styles.tabButtonText,
+              activeTab === 'following' && styles.activeTabButtonText
+            ]}>
+              Підписки ({followingPosts.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Пошук по користувачах */}
         <View style={styles.searchContainer}>
           <View style={styles.searchInputContainer}>
@@ -719,6 +821,13 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
             {filteredPosts.length > 0 && ` від користувача "${searchQuery}"`}
           </Text>
         )}
+
+        {/* Інформація про сортування */}
+        {!searchQuery && (
+          <Text style={styles.sortingInfo}>
+            📈 Пости відсортовані за популярністю
+          </Text>
+        )}
       </View>
       
       <FlatList
@@ -736,14 +845,18 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
-              {searchQuery 
-                ? `Немає постів від користувача "${searchQuery}"` 
-                : (currentWeather 
-                  ? 'Немає постів з подібною погодою' 
-                  : 'Поки немає жодних постів у спільноті'
-                )}
+              {activeTab === 'following' 
+                ? (followingUserIds.length === 0 
+                  ? 'Ви поки ні на кого не підписані' 
+                  : 'Немає постів від користувачів, на яких ви підписані')
+                : (searchQuery 
+                  ? `Немає постів від користувача "${searchQuery}"` 
+                  : (currentWeather 
+                    ? 'Немає постів з подібною погодою' 
+                    : 'Поки немає жодних постів у спільноті'
+                  ))}
             </Text>
-            {(currentWeather || searchQuery) && (
+            {(currentWeather || searchQuery) && activeTab !== 'following' && (
               <TouchableOpacity 
                 style={styles.showAllButton}
                 onPress={() => {
@@ -753,6 +866,17 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
                 }}
               >
                 <Text style={styles.showAllButtonText}>Показати всі пости</Text>
+              </TouchableOpacity>
+            )}
+            {activeTab === 'following' && followingUserIds.length === 0 && (
+              <TouchableOpacity 
+                style={styles.showAllButton}
+                onPress={() => {
+                  setActiveTab('all');
+                  navigation.navigate('Social'); // Перехід до соціального розділу для пошуку користувачів
+                }}
+              >
+                <Text style={styles.showAllButtonText}>Знайти користувачів</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -833,6 +957,32 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginBottom: 12,
+  },
+  // Стилі для вкладок
+  tabsContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 25,
+    padding: 2,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 23,
+    alignItems: 'center',
+  },
+  activeTabButton: {
+    backgroundColor: '#1976d2',
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  activeTabButtonText: {
+    color: '#fff',
   },
   searchContainer: {
     position: 'relative',
@@ -915,6 +1065,13 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginTop: 12,
+    fontStyle: 'italic',
+  },
+  sortingInfo: {
+    fontSize: 12,
+    color: '#1976d2',
+    textAlign: 'center',
+    marginTop: 8,
     fontStyle: 'italic',
   },
   postContainer: {
@@ -1049,6 +1206,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  popularityIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 12,
+    backgroundColor: 'rgba(255, 152, 0, 0.9)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  popularityText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: 'bold',
   },
   postIndicator: {
     position: 'absolute',

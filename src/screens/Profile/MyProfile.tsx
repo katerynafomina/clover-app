@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  Modal,
+  SafeAreaView,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
@@ -48,6 +50,20 @@ interface UserPost {
   };
 }
 
+interface FollowStats {
+  followers_count: number;
+  following_count: number;
+}
+
+interface UserFollower {
+  id: string;
+  username: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  isFollowing?: boolean;
+  isFollowLoading?: boolean;
+}
+
 const DEFAULT_AVATAR_URL = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
 
 const MyProfileScreen = () => {
@@ -56,9 +72,20 @@ const MyProfileScreen = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [posts, setPosts] = useState<UserPost[]>([]);
   const [savedPostsCount, setSavedPostsCount] = useState<number>(0);
+  const [followStats, setFollowStats] = useState<FollowStats>({
+    followers_count: 0,
+    following_count: 0
+  });
   const [loading, setLoading] = useState(true);
   const [postsLoading, setPostsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Стани для модального вікна фоловерів
+  const [followersModalVisible, setFollowersModalVisible] = useState(false);
+  const [modalInitialTab, setModalInitialTab] = useState<'followers' | 'following'>('followers');
+  const [modalFollowers, setModalFollowers] = useState<UserFollower[]>([]);
+  const [modalFollowing, setModalFollowing] = useState<UserFollower[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -111,6 +138,40 @@ const MyProfileScreen = () => {
       console.error('Error fetching profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFollowStats = async () => {
+    if (!session?.user?.id) return;
+
+    try {
+      // Отримуємо кількість фоловерів (хто підписаний на поточного користувача)
+      const { count: followersCount, error: followersError } = await supabase
+        .from('followers')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', session.user.id);
+
+      if (followersError) {
+        console.error('Error fetching followers count:', followersError);
+      }
+
+      // Отримуємо кількість підписок (на кого підписаний поточний користувач)
+      const { count: followingCount, error: followingError } = await supabase
+        .from('followers')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', session.user.id);
+
+      if (followingError) {
+        console.error('Error fetching following count:', followingError);
+      }
+
+      setFollowStats({
+        followers_count: followersCount || 0,
+        following_count: followingCount || 0
+      });
+
+    } catch (error) {
+      console.error('Error fetching follow stats:', error);
     }
   };
 
@@ -204,12 +265,136 @@ const MyProfileScreen = () => {
     }
   };
 
+  // Функції для модального вікна фоловерів
+  const fetchModalFollowers = async (): Promise<UserFollower[]> => {
+    if (!session?.user?.id) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('followers')
+        .select(`
+          follower_id,
+          profiles!followers_follower_id_fkey (
+            id,
+            username,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('following_id', session.user.id);
+
+      if (error) {
+        console.error('Error fetching modal followers:', error);
+        return [];
+      }
+
+      const followersData = await Promise.all(
+        (data || []).map(async (item: any) => {
+          const profile = item.profiles;
+          
+          let avatarUrl = profile.avatar_url;
+          if (avatarUrl && !avatarUrl.startsWith('http')) {
+            const { data: avatarData } = await supabase.storage
+              .from('avatars')
+              .getPublicUrl(avatarUrl);
+            avatarUrl = avatarData?.publicUrl;
+          }
+
+          return {
+            id: profile.id,
+            username: profile.username,
+            full_name: profile.full_name,
+            avatar_url: avatarUrl || DEFAULT_AVATAR_URL,
+            isFollowing: false, // Для власного профілю не показуємо кнопки підписки
+            isFollowLoading: false
+          };
+        })
+      );
+
+      return followersData;
+    } catch (error) {
+      console.error('Error fetching modal followers:', error);
+      return [];
+    }
+  };
+
+  const fetchModalFollowing = async (): Promise<UserFollower[]> => {
+    if (!session?.user?.id) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('followers')
+        .select(`
+          following_id,
+          profiles!followers_following_id_fkey (
+            id,
+            username,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('follower_id', session.user.id);
+
+      if (error) {
+        console.error('Error fetching modal following:', error);
+        return [];
+      }
+
+      const followingData = await Promise.all(
+        (data || []).map(async (item: any) => {
+          const profile = item.profiles;
+          
+          let avatarUrl = profile.avatar_url;
+          if (avatarUrl && !avatarUrl.startsWith('http')) {
+            const { data: avatarData } = await supabase.storage
+              .from('avatars')
+              .getPublicUrl(avatarUrl);
+            avatarUrl = avatarData?.publicUrl;
+          }
+
+          return {
+            id: profile.id,
+            username: profile.username,
+            full_name: profile.full_name,
+            avatar_url: avatarUrl || DEFAULT_AVATAR_URL,
+            isFollowing: true, // Всі в списку підписок за замовчуванням підписані
+            isFollowLoading: false
+          };
+        })
+      );
+
+      return followingData;
+    } catch (error) {
+      console.error('Error fetching modal following:', error);
+      return [];
+    }
+  };
+
+  const fetchModalData = async () => {
+    try {
+      setModalLoading(true);
+      const [followersData, followingData] = await Promise.all([
+        fetchModalFollowers(),
+        fetchModalFollowing()
+      ]);
+      
+      setModalFollowers(followersData);
+      setModalFollowing(followingData);
+    } catch (error) {
+      console.error('Error fetching modal data:', error);
+      Alert.alert('Помилка', 'Не вдалося завантажити дані');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
       fetchProfile(),
       fetchUserPosts(),
-      fetchSavedPostsCount()
+      fetchSavedPostsCount(),
+      fetchFollowStats()
     ]);
     setRefreshing(false);
   }, [session]);
@@ -220,6 +405,7 @@ const MyProfileScreen = () => {
         fetchProfile();
         fetchUserPosts();
         fetchSavedPostsCount();
+        fetchFollowStats();
       }
     }, [session])
   );
@@ -249,6 +435,28 @@ const MyProfileScreen = () => {
     navigation.navigate('SavedPosts');
   };
 
+  const navigateToFollowers = () => {
+    setModalInitialTab('followers');
+    setFollowersModalVisible(true);
+    fetchModalData();
+  };
+
+  const navigateToFollowing = () => {
+    setModalInitialTab('following');
+    setFollowersModalVisible(true);
+    fetchModalData();
+  };
+
+  const handleNavigateToProfile = (username: string) => {
+    navigation.navigate('UserProfile', { username });
+  };
+
+  const closeFollowersModal = () => {
+    setFollowersModalVisible(false);
+    setModalFollowers([]);
+    setModalFollowing([]);
+  };
+
   const navigateToPost = (postId: number) => {
     console.log('Navigating to post from profile:', postId);
     try {
@@ -256,6 +464,52 @@ const MyProfileScreen = () => {
     } catch (error) {
       console.error('Navigation error:', error);
       Alert.alert('Помилка', 'Не вдалося відкрити пост');
+    }
+  };
+
+  // Обробка відписки в модальному вікні
+  const handleUnfollow = async (targetUserId: string) => {
+    if (!session) return;
+
+    try {
+      // Оновлюємо стан завантаження
+      setModalFollowing(prev => prev.map(user => 
+        user.id === targetUserId 
+          ? { ...user, isFollowLoading: true }
+          : user
+      ));
+
+      const { error } = await supabase
+        .from('followers')
+        .delete()
+        .eq('follower_id', session.user.id)
+        .eq('following_id', targetUserId);
+
+      if (error) {
+        console.error('Error unfollowing:', error);
+        Alert.alert('Помилка', 'Не вдалося відписатися');
+        return;
+      }
+
+      // Видаляємо користувача зі списку підписок
+      setModalFollowing(prev => prev.filter(user => user.id !== targetUserId));
+      
+      // Оновлюємо лічильник
+      setFollowStats(prev => ({
+        ...prev,
+        following_count: Math.max(0, prev.following_count - 1)
+      }));
+
+    } catch (error) {
+      console.error('Error handling unfollow:', error);
+      Alert.alert('Помилка', 'Щось пішло не так');
+    } finally {
+      // Видаляємо стан завантаження
+      setModalFollowing(prev => prev.map(user => 
+        user.id === targetUserId 
+          ? { ...user, isFollowLoading: false }
+          : user
+      ));
     }
   };
 
@@ -322,6 +576,70 @@ const MyProfileScreen = () => {
     );
   };
 
+  const renderModalUserItem = ({ item }: { item: UserFollower }) => {
+    const isCurrentUser = session?.user?.id === item.id;
+    const showUnfollowButton = modalInitialTab === 'following' && !isCurrentUser;
+
+    return (
+      <TouchableOpacity
+        style={styles.modalUserItem}
+        onPress={() => {
+          closeFollowersModal();
+          handleNavigateToProfile(item.username);
+        }}
+        activeOpacity={0.7}
+      >
+        <Image source={{ uri: item.avatar_url }} style={styles.modalAvatar} />
+        
+        <View style={styles.modalUserInfo}>
+          <Text style={styles.modalUsername}>{item.username}</Text>
+          {item.full_name && (
+            <Text style={styles.modalFullName}>{item.full_name}</Text>
+          )}
+        </View>
+
+        {showUnfollowButton && (
+          <TouchableOpacity
+            style={[
+              styles.unfollowButton,
+              item.isFollowLoading && styles.unfollowButtonLoading
+            ]}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleUnfollow(item.id);
+            }}
+            disabled={item.isFollowLoading}
+          >
+            {item.isFollowLoading ? (
+              <ActivityIndicator size="small" color="#ff4444" />
+            ) : (
+              <Text style={styles.unfollowButtonText}>Відписатися</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {isCurrentUser && (
+          <View style={styles.youLabel}>
+            <Text style={styles.youLabelText}>Ви</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderModalEmptyState = () => {
+    const isFollowersTab = modalInitialTab === 'followers';
+    const emptyText = isFollowersTab 
+      ? 'У вас поки немає фоловерів'
+      : 'Ви поки ні на кого не підписані';
+
+    return (
+      <View style={styles.modalEmptyContainer}>
+        <Text style={styles.modalEmptyText}>{emptyText}</Text>
+      </View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -340,84 +658,168 @@ const MyProfileScreen = () => {
     );
   }
 
+  const currentModalData = modalInitialTab === 'followers' ? modalFollowers : modalFollowing;
+
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Заголовок профілю */}
-      <View style={styles.profileHeader}>
-        <View style={styles.avatarContainer}>
-          <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
-        </View>
-        
-        <View style={styles.profileInfo}>
-          <Text style={styles.fullName}>{profile.full_name || 'Не вказано'}</Text>
-          <Text style={styles.username}>@{profile.username}</Text>
-          {profile.description && (
-            <Text style={styles.description}>{profile.description}</Text>
-          )}
-          {profile.website && (
-            <Text style={styles.website}>{profile.website}</Text>
-          )}
-        </View>
-      </View>
-
-      {/* Статистика */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statItemContainer}>
-          <Text style={styles.statNumber}>{posts.length}</Text>
-          <Text style={styles.statLabel}>Постів</Text>
-        </View>
-        <TouchableOpacity style={styles.statItemContainer} onPress={navigateToSavedPosts}>
-          <Text style={styles.statNumber}>{savedPostsCount}</Text>
-          <Text style={styles.statLabel}>Збережених</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Кнопки дій */}
-      <View style={styles.actionsContainer}>
-        <Button text="Редагувати профіль" onPress={navigateToEditProfile} />
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Вийти з акаунту</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Пости користувача */}
-      <View style={styles.postsSection}>
-        <Text style={styles.sectionTitle}>Мої пости</Text>
-        
-        {postsLoading ? (
-          <View style={styles.postsLoadingContainer}>
-            <ActivityIndicator size="large" color="#1976d2" />
-            <Text>Завантаження постів...</Text>
+    <>
+      <ScrollView 
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Заголовок профілю */}
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarContainer}>
+            <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
           </View>
-        ) : posts.length > 0 ? (
-          <FlatList
-            data={posts}
-            renderItem={renderPost}
-            keyExtractor={(item) => item.id.toString()}
-            numColumns={2}
-            columnWrapperStyle={styles.postsRow}
-            scrollEnabled={false}
-            contentContainerStyle={styles.postsGrid}
-          />
-        ) : (
-          <View style={styles.emptyPostsContainer}>
-            <Text style={styles.emptyPostsText}>
-              У вас ще немає постів
-            </Text>
-            <Text style={styles.emptyPostsSubtext}>
-              Створіть свій перший образ та поділіться ним зі спільнотою!
-            </Text>
+          
+          <View style={styles.profileInfo}>
+            <Text style={styles.fullName}>{profile.full_name || 'Не вказано'}</Text>
+            <Text style={styles.username}>@{profile.username}</Text>
+            {profile.description && (
+              <Text style={styles.description}>{profile.description}</Text>
+            )}
+            {profile.website && (
+              <Text style={styles.website}>{profile.website}</Text>
+            )}
           </View>
-        )}
-      </View>
+        </View>
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        {/* Розширена статистика */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statItemContainer}>
+            <Text style={styles.statNumber}>{posts.length}</Text>
+            <Text style={styles.statLabel}>Постів</Text>
+          </View>
+          
+          <TouchableOpacity style={styles.statItemContainer} onPress={navigateToFollowers}>
+            <Text style={styles.statNumber}>{followStats.followers_count}</Text>
+            <Text style={styles.statLabel}>Фоловерів</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.statItemContainer} onPress={navigateToFollowing}>
+            <Text style={styles.statNumber}>{followStats.following_count}</Text>
+            <Text style={styles.statLabel}>Підписок</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.statItemContainer} onPress={navigateToSavedPosts}>
+            <Text style={styles.statNumber}>{savedPostsCount}</Text>
+            <Text style={styles.statLabel}>Збережених</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Кнопки дій */}
+        <View style={styles.actionsContainer}>
+          <Button text="Редагувати профіль" onPress={navigateToEditProfile} />
+          <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+            <Text style={styles.signOutText}>Вийти з акаунту</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Пости користувача */}
+        <View style={styles.postsSection}>
+          <Text style={styles.sectionTitle}>Мої пости</Text>
+          
+          {postsLoading ? (
+            <View style={styles.postsLoadingContainer}>
+              <ActivityIndicator size="large" color="#1976d2" />
+              <Text>Завантаження постів...</Text>
+            </View>
+          ) : posts.length > 0 ? (
+            <FlatList
+              data={posts}
+              renderItem={renderPost}
+              keyExtractor={(item) => item.id.toString()}
+              numColumns={2}
+              columnWrapperStyle={styles.postsRow}
+              scrollEnabled={false}
+              contentContainerStyle={styles.postsGrid}
+            />
+          ) : (
+            <View style={styles.emptyPostsContainer}>
+              <Text style={styles.emptyPostsText}>
+                У вас ще немає постів
+              </Text>
+              <Text style={styles.emptyPostsSubtext}>
+                Створіть свій перший образ та поділіться ним зі спільнотою!
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      {/* Модальне вікно фоловерів та підписок */}
+      <Modal
+        visible={followersModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeFollowersModal}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          {/* Заголовок модального вікна */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalHeaderTitle}>@{profile.username}</Text>
+            <TouchableOpacity onPress={closeFollowersModal} style={styles.modalCloseButton}>
+              <Text style={styles.modalCloseButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Сегментований контрол */}
+          <View style={styles.modalSegmentedControl}>
+            <TouchableOpacity
+              style={[
+                styles.modalSegmentButton,
+                modalInitialTab === 'followers' && styles.modalActiveSegmentButton
+              ]}
+              onPress={() => setModalInitialTab('followers')}
+            >
+              <Text style={[
+                styles.modalSegmentButtonText,
+                modalInitialTab === 'followers' && styles.modalActiveSegmentButtonText
+              ]}>
+                Фоловери ({modalFollowers.length})
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.modalSegmentButton,
+                modalInitialTab === 'following' && styles.modalActiveSegmentButton
+              ]}
+              onPress={() => setModalInitialTab('following')}
+            >
+              <Text style={[
+                styles.modalSegmentButtonText,
+                modalInitialTab === 'following' && styles.modalActiveSegmentButtonText
+              ]}>
+                Підписки ({modalFollowing.length})
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Список користувачів */}
+          {modalLoading ? (
+            <View style={styles.modalLoadingContainer}>
+              <ActivityIndicator size="large" color="#1976d2" />
+              <Text style={styles.modalLoadingText}>Завантаження...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={currentModalData}
+              renderItem={renderModalUserItem}
+              keyExtractor={(item) => item.id}
+              style={styles.modalList}
+              contentContainerStyle={currentModalData.length === 0 ? styles.modalEmptyListContainer : undefined}
+              ListEmptyComponent={renderModalEmptyState}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
+    </>
   );
 };
 
@@ -497,14 +899,15 @@ const styles = StyleSheet.create({
   },
   statItemContainer: {
     alignItems: 'center',
+    flex: 1,
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     marginTop: 4,
   },
@@ -633,6 +1036,137 @@ const styles = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // Стилі модального вікна
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalCloseButtonText: {
+    fontSize: 20,
+    color: '#666',
+  },
+  modalSegmentedControl: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalSegmentButton: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  modalActiveSegmentButton: {
+    borderBottomColor: '#1976d2',
+  },
+  modalSegmentButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  modalActiveSegmentButtonText: {
+    color: '#1976d2',
+  },
+  modalList: {
+    flex: 1,
+  },
+  modalLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  modalLoadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  modalEmptyListContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalEmptyContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  modalEmptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  modalUserItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalAvatar: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    marginRight: 12,
+  },
+  modalUserInfo: {
+    flex: 1,
+  },
+  modalUsername: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  modalFullName: {
+    fontSize: 13,
+    color: '#666',
+  },
+  unfollowButton: {
+    backgroundColor: '#ff4444',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  unfollowButtonLoading: {
+    opacity: 0.7,
+  },
+  unfollowButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  youLabel: {
+    backgroundColor: '#e3f2fd',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  youLabelText: {
+    fontSize: 11,
+    color: '#1976d2',
+    fontWeight: '500',
   },
 });
 
