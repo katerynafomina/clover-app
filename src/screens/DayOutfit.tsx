@@ -10,6 +10,7 @@ import Button from '../components/Button';
 type WeatherData = {
   id: number;
   weather_type: string;
+  weather_date: string;
   min_tempurature: number;
   max_tempurature: number;
   precipitation: number;
@@ -418,7 +419,11 @@ const DayOutfit = ({ route }: { route: any }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>{GetDate(day)}</Text>
+        {/* Використовуємо GetDate як React компонент з правильним пропсом */}
+        <View style={styles.titleContainer}>
+          <GetDate day={weatherData?.weather_date || day} />
+        </View>
+        
         {weatherData && (
           <Text style={[styles.title, {fontSize: 18}]}>{weatherData.city}</Text>
         )}
@@ -533,6 +538,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 16,
+  },
+  titleContainer: {
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,

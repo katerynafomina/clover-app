@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { StyleSheet, View, Text, Image, ScrollView, Pressable, TouchableOpacity, Alert, Modal } from 'react-native';
+import { StyleSheet, View, Text, Image, ScrollView, Pressable, TouchableOpacity, Alert, Modal, FlatList } from 'react-native';
 import GetDate from '../components/date';
 import LocationToCity from '../components/location';
 import { supabase } from '../lib/supabase';
@@ -801,6 +801,29 @@ const saveOutfit = async () => {
                             </View>
                         </View>
                     </View>
+                    <FlatList
+                            style={{ maxHeight: 150, marginBottom: 20 }}
+                            data={weatherData?.forecast}
+                            keyExtractor={(item) => item.dt.toString()}
+                            renderItem={({ item }) => {
+                                const date = new Date(item.dt * 1000);
+                                return (
+                                    <View style={{ alignItems: "center" }}>
+                                        <Image
+                                            source={{ uri: `http://openweathermap.org/img/wn/${item.weather[0].icon}.png` }}
+                                            style={{ width: 60, height: 50 }}
+                                        />
+                                        <Text style={{ fontSize: 20, marginBottom: 12 }}>{item.main.temp > 0 ? '+' : ''}{Math.round(item.main.temp)}°</Text>
+                                        <Text style={{ fontSize: 15 }}>{date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}</Text>
+                                    </View>
+                                );
+                            }}
+                            numColumns={8}
+                            contentContainerStyle={{}}
+                            columnWrapperStyle={{ gap: 10 }}
+                            scrollEnabled={false}
+                        />
+ 
                 </View>
                 
                 {/* Конструктор образу */}

@@ -328,7 +328,7 @@ const HomeTabs = ({ navigation }: { navigation: any }) => {
   return (
     <Tab.Navigator>
       <Tab.Screen 
-        name="Home" 
+        name="Головна" 
         children={() => <HomeStack navigation={navigation} />}
         options={{
           headerShown: false,
@@ -338,7 +338,7 @@ const HomeTabs = ({ navigation }: { navigation: any }) => {
         }}
       />
       <Tab.Screen 
-        name="Closet"
+        name="Гардероб"
         children={() => <ClosetStack navigation={navigation} />}
         options={{
           headerShown: false,
@@ -348,7 +348,7 @@ const HomeTabs = ({ navigation }: { navigation: any }) => {
         }}
       />
       <Tab.Screen 
-        name="Outfits"
+        name="Календар"
         children={() => <CalendarStack navigation={navigation} />}
         options={{
           headerShown: false,
@@ -358,7 +358,7 @@ const HomeTabs = ({ navigation }: { navigation: any }) => {
         }}
       />
       <Tab.Screen 
-        name="Community"
+        name="Спільнота"
         children={() => <CommunityStack navigation={navigation} />}
         options={{
           headerShown: false,

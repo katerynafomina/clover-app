@@ -10,9 +10,412 @@ import {
   ActivityIndicator,
   TextInput 
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 
+// Мапа всіх типів погоди з OpenWeatherMap API і їх українських перекладів
+const WEATHER_TRANSLATIONS: Record<number, string> = {
+  // Thunderstorm group (200-232)
+  200: "гроза з легким дощем",
+  201: "гроза з дощем", 
+  202: "гроза з сильним дощем",
+  210: "легка гроза",
+  211: "гроза",
+  212: "сильна гроза", 
+  221: "рвана гроза",
+  230: "гроза з легкою мороссю",
+  231: "гроза з мороссю",
+  232: "гроза з сильною мороссю",
+
+  // Drizzle group (300-321) 
+  300: "легка морось",
+  301: "морось",
+  302: "сильна морось",
+  310: "легкий дощ з мороссю",
+  311: "дощ з мороссю", 
+  312: "сильний дощ з мороссю",
+  313: "зливовий дощ з мороссю",
+  314: "сильний зливовий дощ з мороссю",
+  321: "зливова морось",
+
+  // Rain group (500-531)
+  500: "легкий дощ",
+  501: "помірний дощ",
+  502: "сильний дощ",
+  503: "дуже сильний дощ", 
+  504: "екстремальний дощ",
+  511: "дощ що замерзає",
+  520: "легкий зливовий дощ",
+  521: "зливовий дощ",
+  522: "сильний зливовий дощ", 
+  531: "рваний зливовий дощ",
+
+  // Snow group (600-622)
+  600: "легкий сніг",
+  601: "сніг", 
+  602: "сильний сніг",
+  611: "мокрий сніг",
+  612: "легкий мокрий сніг",
+  613: "мокрий сніг",
+  615: "легкий дощ зі снігом",
+  616: "дощ зі снігом",
+  620: "легкий снігопад",
+  621: "снігопад",
+  622: "сильний снігопад",
+
+  // Atmosphere group (701-781) 
+  701: "туман",
+  711: "дим",
+  721: "легка імла",
+  731: "піщані/пилові вихори",
+  741: "туман",
+  751: "пісок", 
+  761: "пил",
+  762: "вулканічний попіл",
+  771: "шквал",
+  781: "торнадо",
+
+  // Clear group (800)
+  800: "ясне небо",
+
+  // Clouds group (801-804)
+  801: "кілька хмар",
+  802: "рвані хмари", 
+  803: "хмарно",
+  804: "похмуро"
+};
+// Групи схожих типів погоди
+const WEATHER_GROUPS = {
+  // Грози (всі грози схожі між собою)
+  thunderstorm: [200, 201, 202, 210, 211, 212, 221, 230, 231, 232],
+  
+  // Легкі опади (морось + легкий дощ)
+  light_precipitation: [300, 301, 310, 311, 321, 500, 520],
+  
+  // Помірні опади (помірна морось + помірний дощ)
+  moderate_precipitation: [302, 312, 501, 521, 531],
+  
+  // Сильні опади (важка морось + сильний дощ)
+  heavy_precipitation: [313, 314, 502, 522],
+  
+  // Екстремальні опади
+  extreme_precipitation: [503, 504],
+  
+  // Дощ що замерзає (окремо)
+  freezing_rain: [511],
+  
+  // Легкий сніг
+  light_snow: [600, 612, 615, 620],
+  
+  // Помірний/сильний сніг
+  moderate_heavy_snow: [601, 602, 613, 616, 621, 622],
+  
+  // Мокрий сніг (окремо)
+  sleet: [611],
+  
+  // Туман та імла
+  fog_mist: [701, 721, 741],
+  
+  // Дим та забруднення
+  smoke_haze: [711, 751, 761],
+  
+  // Пилові явища
+  dust_sand: [731, 762],
+  
+  // Екстремальні явища
+  extreme_weather: [771, 781],
+  
+  // Ясні умови (ясно + кілька хмар)
+  clear_conditions: [800, 801],
+  
+  // Помірно хмарні умови (рвані хмари + хмарно)
+  partly_cloudy: [802, 803],
+  
+  // Похмуро (суцільна хмарність)
+  overcast: [804]
+};
+
+// Функція для отримання схожих типів погоди
+function getSimilarWeatherTypes(currentWeatherType: string): string[] {
+  const lowerWeatherType = currentWeatherType.toLowerCase();
+  
+  // Спочатку намагаємося знайти точний збіг у групах
+  for (const [groupName, codes] of Object.entries(WEATHER_GROUPS)) {
+    if (codes.some(code => WEATHER_TRANSLATIONS[code] === currentWeatherType)) {
+      // Знайшли групу, повертаємо всі типи з цієї групи
+      const similarTypes = codes.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Знайдено точний збіг для "${currentWeatherType}" в групі "${groupName}":`, similarTypes);
+      return similarTypes;
+    }
+  }
+  
+  // Якщо точного збігу немає, використовуємо розширену логіку за ключовими словами
+  
+  // Грози - всі види грози схожі
+  if (lowerWeatherType.includes('гроз')) {
+    const thunderstormTypes = WEATHER_GROUPS.thunderstorm.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+    console.log(`Розпізнано грозу для "${currentWeatherType}":`, thunderstormTypes);
+    return thunderstormTypes;
+  }
+  
+  // Дощ - групуємо за інтенсивністю, але з перекриттям
+  if (lowerWeatherType.includes('дощ') || lowerWeatherType.includes('морос')) {
+    if (lowerWeatherType.includes('легк') || lowerWeatherType.includes('слаб')) {
+      // Легкий дощ + морось
+      const lightRain = [...WEATHER_GROUPS.light_precipitation, ...WEATHER_GROUPS.moderate_precipitation.slice(0, 2)]
+        .map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано легкий дощ для "${currentWeatherType}":`, lightRain);
+      return lightRain;
+    } else if (lowerWeatherType.includes('сильн') || lowerWeatherType.includes('важк')) {
+      // Сильний дощ + екстремальний
+      const heavyRain = [...WEATHER_GROUPS.heavy_precipitation, ...WEATHER_GROUPS.extreme_precipitation]
+        .map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано сильний дощ для "${currentWeatherType}":`, heavyRain);
+      return heavyRain;
+    } else if (lowerWeatherType.includes('екстремальн') || lowerWeatherType.includes('дуже')) {
+      const extremeRain = WEATHER_GROUPS.extreme_precipitation.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано екстремальний дощ для "${currentWeatherType}":`, extremeRain);
+      return extremeRain;
+    } else if (lowerWeatherType.includes('замерз')) {
+      const freezingRain = WEATHER_GROUPS.freezing_rain.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано дощ що замерзає для "${currentWeatherType}":`, freezingRain);
+      return freezingRain;
+    } else {
+      // Помірний дощ + легкий та важкий (розширений діапазон)
+      const moderateRain = [...WEATHER_GROUPS.light_precipitation.slice(-2), ...WEATHER_GROUPS.moderate_precipitation, ...WEATHER_GROUPS.heavy_precipitation.slice(0, 1)]
+        .map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано помірний дощ для "${currentWeatherType}":`, moderateRain);
+      return moderateRain;
+    }
+  }
+  
+  // Сніг - групуємо за інтенсивністю
+  if (lowerWeatherType.includes('сніг') || lowerWeatherType.includes('снігопад')) {
+    if (lowerWeatherType.includes('мокр')) {
+      const sleet = WEATHER_GROUPS.sleet.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано мокрий сніг для "${currentWeatherType}":`, sleet);
+      return sleet;
+    } else if (lowerWeatherType.includes('легк')) {
+      const lightSnow = [...WEATHER_GROUPS.light_snow, ...WEATHER_GROUPS.moderate_heavy_snow.slice(0, 1)]
+        .map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано легкий сніг для "${currentWeatherType}":`, lightSnow);
+      return lightSnow;
+    } else if (lowerWeatherType.includes('сильн')) {
+      const heavySnow = WEATHER_GROUPS.moderate_heavy_snow.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано сильний сніг для "${currentWeatherType}":`, heavySnow);
+      return heavySnow;
+    } else {
+      // Всі види снігу (крім мокрого)
+      const allSnow = [...WEATHER_GROUPS.light_snow, ...WEATHER_GROUPS.moderate_heavy_snow]
+        .map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано сніг для "${currentWeatherType}":`, allSnow);
+      return allSnow;
+    }
+  }
+  
+  // Хмари - ПОКРАЩЕНА ЛОГІКА
+  if (lowerWeatherType.includes('хмар') || lowerWeatherType.includes('ясн') || lowerWeatherType.includes('сонячн')) {
+    if (lowerWeatherType.includes('ясн') || lowerWeatherType.includes('сонячн') || 
+        lowerWeatherType.includes('кільк') || lowerWeatherType.includes('мало')) {
+      // Ясні умови включають ясне небо та кілька хмар
+      const clearConditions = WEATHER_GROUPS.clear_conditions.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано ясні умови для "${currentWeatherType}":`, clearConditions);
+      return clearConditions;
+    } else if (lowerWeatherType.includes('похмур') || lowerWeatherType.includes('суцільн')) {
+      // Похмуро окремо
+      const overcast = WEATHER_GROUPS.overcast.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано похмуро для "${currentWeatherType}":`, overcast);
+      return overcast;
+    } else {
+      // Помірно хмарні умови (рвані хмари + хмарно + трохи ясних та похмурих)
+      const partlyCloudy = [
+        ...WEATHER_GROUPS.clear_conditions.slice(-1), // кілька хмар
+        ...WEATHER_GROUPS.partly_cloudy,              // рвані хмари + хмарно
+        ...WEATHER_GROUPS.overcast.slice(0, 1)        // початок похмуро
+      ].map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+      console.log(`Розпізнано хмарні умови для "${currentWeatherType}":`, partlyCloudy);
+      return partlyCloudy;
+    }
+  }
+  
+  // Туман та імла
+  if (lowerWeatherType.includes('туман') || lowerWeatherType.includes('імла')) {
+    const fogMist = WEATHER_GROUPS.fog_mist.map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+    console.log(`Розпізнано туман/імлу для "${currentWeatherType}":`, fogMist);
+    return fogMist;
+  }
+  
+  // Дим та забруднення
+  if (lowerWeatherType.includes('дим') || lowerWeatherType.includes('пил')) {
+    const smokeHaze = [...WEATHER_GROUPS.smoke_haze, ...WEATHER_GROUPS.dust_sand]
+      .map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+    console.log(`Розпізнано дим/пил для "${currentWeatherType}":`, smokeHaze);
+    return smokeHaze;
+  }
+  
+  // Екстремальні явища
+  if (lowerWeatherType.includes('торнадо') || lowerWeatherType.includes('шквал') || 
+      lowerWeatherType.includes('вулкан') || lowerWeatherType.includes('вихор')) {
+    const extreme = [...WEATHER_GROUPS.extreme_weather, ...WEATHER_GROUPS.dust_sand.slice(0, 1)]
+      .map(code => WEATHER_TRANSLATIONS[code]).filter(Boolean);
+    console.log(`Розпізнано екстремальні явища для "${currentWeatherType}":`, extreme);
+    return extreme;
+  }
+  
+  // Якщо не знайдено схожих типів, повертаємо тільки поточний тип
+  console.log(`Не знайдено схожих типів для "${currentWeatherType}", повертаємо тільки поточний`);
+  return [currentWeatherType];
+}
+
+// 3. Виправляємо інтерфейс RawOutfitData
+interface RawOutfitData {
+  id: any;
+  date: any;
+  user_id: any; // ДОДАЄМО це поле
+  profiles: {
+    username: any;
+    avatar_url: any;
+  };
+  weather: {
+    weather_type: any;
+    min_tempurature: any;
+    max_tempurature: any;
+    weather_icon: any;
+    date: any;
+    city: any;
+  };
+  outfit_item: {
+    wardrobe: {
+      id: any;
+      photo_url: any;
+      category: any;
+      subcategory: any;
+    };
+  }[];
+}
+
+// 4. Виправляємо функції з перевіркою на null
+const fetchFilteredPosts = async (
+  currentSession: Session | null, 
+  userTemp: number, 
+  userWeatherType: string
+) => {
+  try {
+    setLoading(true);
+    
+    const tempTolerance = 3;
+    const minTemp = userTemp - tempTolerance;
+    const maxTemp = userTemp + tempTolerance;
+    
+    const similarWeatherTypes = getSimilarWeatherTypes(userWeatherType);
+    console.log('Поточний тип погоди:', userWeatherType);
+    console.log('Схожі типи погоди для пошуку:', similarWeatherTypes);
+    console.log('Температурний діапазон:', minTemp, '-', maxTemp);
+    
+    let query = supabase
+      .from('posts')
+      .select(`
+        id,
+        created_at,
+        outfits!inner (
+          id,
+          date,
+          user_id,
+          profiles!inner (
+            username,
+            avatar_url
+          ),
+          weather!inner (
+            weather_type,
+            min_tempurature,
+            max_tempurature,
+            weather_icon,
+            date,
+            city
+          ),
+          outfit_item (
+            wardrobe (
+              id,
+              photo_url,
+              category,
+              subcategory
+            )
+          )
+        )
+      `)
+      .lte('outfits.weather.min_tempurature', maxTemp)
+      .gte('outfits.weather.max_tempurature', minTemp)
+      .in('outfits.weather.weather_type', similarWeatherTypes);
+
+    let { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching filtered posts:', error);
+      fetchAllPosts(currentSession);
+      return;
+    }
+
+    console.log(`Знайдено ${data?.length || 0} постів зі схожою погодою і температурою`);
+    // ДОДАЄМО перевірку на null
+    await processPosts(data || [], currentSession, true);
+  } catch (error) {
+    console.error('Error in fetchFilteredPosts:', error);
+    fetchAllPosts(currentSession);
+  }
+};
+
+const fetchAllPosts = async (currentSession: Session | null) => {
+  try {
+    setLoading(true);
+    
+    let query = supabase
+      .from('posts')
+      .select(`
+        id,
+        created_at,
+        outfits!inner (
+          id,
+          date,
+          user_id,
+          profiles!inner (
+            username,
+            avatar_url
+          ),
+          weather!inner (
+            weather_type,
+            min_tempurature,
+            max_tempurature,
+            weather_icon,
+            date,
+            city
+          ),
+          outfit_item (
+            wardrobe (
+              id,
+              photo_url,
+              category,
+              subcategory
+            )
+          )
+        )
+      `);
+
+    let { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching posts:', error);
+      Alert.alert('Помилка', 'Не вдалося завантажити пости');
+      return;
+    }
+
+    // ДОДАЄМО перевірку на null
+    await processPosts(data || [], currentSession, false);
+  } catch (error) {
+    console.error('Error:', error);
+    Alert.alert('Помилка', 'Щось пішло не так');
+  }
+};
 // Інтерфейси для типізації
 interface OutfitItem {
   item_id: number;
@@ -39,7 +442,7 @@ interface Post {
   comments_count: number;
   is_liked: boolean;
   is_saved: boolean;
-  popularity_score: number; // Новий рейтинг популярності
+  popularity_score: number;
 }
 
 interface CurrentWeatherData {
@@ -116,6 +519,12 @@ interface RawPostData {
 
 type TabType = 'all' | 'following';
 
+// Ключі для AsyncStorage
+const STORAGE_KEYS = {
+  WEATHER_FILTER_DISABLED: '@allposts_weather_filter_disabled',
+  ACTIVE_TAB: '@allposts_active_tab'
+};
+
 const DEFAULT_AVATAR_URL = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
 
 const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -131,29 +540,74 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [followingUserIds, setFollowingUserIds] = useState<string[]>([]);
+  const [weatherFilterDisabled, setWeatherFilterDisabled] = useState(false);
+
+  // Завантаження збережених налаштувань
+  const loadSavedSettings = async () => {
+    try {
+      const [savedWeatherFilterDisabled, savedActiveTab] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.WEATHER_FILTER_DISABLED),
+        AsyncStorage.getItem(STORAGE_KEYS.ACTIVE_TAB)
+      ]);
+
+      if (savedWeatherFilterDisabled !== null) {
+        setWeatherFilterDisabled(JSON.parse(savedWeatherFilterDisabled));
+      }
+
+      if (savedActiveTab !== null) {
+        setActiveTab(savedActiveTab as TabType);
+      }
+    } catch (error) {
+      console.error('Error loading saved settings:', error);
+    }
+  };
+
+  // Збереження налаштувань фільтра
+  const saveWeatherFilterSetting = async (disabled: boolean) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.WEATHER_FILTER_DISABLED, JSON.stringify(disabled));
+    } catch (error) {
+      console.error('Error saving weather filter setting:', error);
+    }
+  };
+
+  // Збереження активної вкладки
+  const saveActiveTabSetting = async (tab: TabType) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, tab);
+    } catch (error) {
+      console.error('Error saving active tab setting:', error);
+    }
+  };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        fetchFollowingUsers(session.user.id);
-      }
-      getCurrentWeatherAndFetchPosts(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+    const initializeComponent = async () => {
+      await loadSavedSettings();
+      
+      supabase.auth.getSession().then(({ data: { session } }) => {
         setSession(session);
         if (session) {
           fetchFollowingUsers(session.user.id);
         }
         getCurrentWeatherAndFetchPosts(session);
-      }
-    );
+      });
 
-    return () => {
-      subscription.unsubscribe();
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          setSession(session);
+          if (session) {
+            fetchFollowingUsers(session.user.id);
+          }
+          getCurrentWeatherAndFetchPosts(session);
+        }
+      );
+
+      return () => {
+        subscription.unsubscribe();
+      };
     };
+
+    initializeComponent();
   }, []);
 
   // Отримання списку користувачів, на яких підписаний поточний користувач
@@ -256,6 +710,12 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const getCurrentWeatherAndFetchPosts = async (currentSession: Session | null) => {
     try {
+      // Якщо фільтрація вимкнена, одразу завантажуємо всі пости
+      if (weatherFilterDisabled) {
+        fetchAllPosts(currentSession);
+        return;
+      }
+
       const { data: userWeather, error: weatherError } = await supabase
         .from('weather')
         .select('weather_type, min_tempurature, max_tempurature')
@@ -264,7 +724,6 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         .single();
 
       if (weatherError) {
-        console.log('Не вдалося отримати поточну погоду, показуємо всі пости');
         fetchAllPosts(currentSession);
         return;
       }
@@ -285,6 +744,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     }
   };
 
+  // ВИПРАВЛЕНА функція для фільтрації з схожими типами погоди І температурою
   const fetchFilteredPosts = async (
     currentSession: Session | null, 
     userTemp: number, 
@@ -293,9 +753,16 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     try {
       setLoading(true);
       
-      const minTemp = userTemp - 2;
-      const maxTemp = userTemp + 2;
-
+      const tempTolerance = 3; // Збільшуємо толерантність до 3°C
+      const minTemp = userTemp - tempTolerance;
+      const maxTemp = userTemp + tempTolerance;
+      
+      // Отримуємо схожі типи погоди
+      const similarWeatherTypes = getSimilarWeatherTypes(userWeatherType);
+      console.log('Поточний тип погоди:', userWeatherType);
+      console.log('Схожі типи погоди для пошуку:', similarWeatherTypes);
+      console.log('Температурний діапазон:', minTemp, '-', maxTemp);
+      
       let query = supabase
         .from('posts')
         .select(`
@@ -327,9 +794,10 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
             )
           )
         `)
-        .gte('outfits.weather.min_tempurature', minTemp)
-        .lte('outfits.weather.max_tempurature', maxTemp)
-        .eq('outfits.weather.weather_type', userWeatherType);
+        // ВИПРАВЛЕНА логіка: шукаємо пости де температурні діапазони перекриваються
+        .lte('outfits.weather.min_tempurature', maxTemp)  // мінімальна температура поста <= наша максимальна
+        .gte('outfits.weather.max_tempurature', minTemp)  // максимальна температура поста >= наша мінімальна
+        .in('outfits.weather.weather_type', similarWeatherTypes); // І тип погоди схожий
 
       let { data, error } = await query.order('created_at', { ascending: false });
 
@@ -339,6 +807,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         return;
       }
 
+      console.log(`Знайдено ${data?.length || 0} постів зі схожою погодою і температурою`);
       await processPosts(data, currentSession, true);
     } catch (error) {
       console.error('Error in fetchFilteredPosts:', error);
@@ -530,7 +999,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
       setPosts(sortedPosts);
       if (!isFiltered || !searchQuery) {
         setAllPosts(sortedPosts);
-        
+                                                                                                                                                                                                                                                     
         // Фільтруємо пости тільки від підписок
         if (followingUserIds.length > 0) {
           const followingOnlyPosts = sortedPosts.filter(post => {
@@ -551,11 +1020,12 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     }
   };
 
-  // Перемикання вкладок
-  const handleTabChange = (tab: TabType) => {
+  // Перемикання вкладок з збереженням у AsyncStorage
+  const handleTabChange = async (tab: TabType) => {
     setActiveTab(tab);
     setSearchQuery(''); // Очищаємо пошук при зміні вкладки
     setShowSuggestions(false);
+    await saveActiveTabSetting(tab); // Зберігаємо нову вкладку
   };
 
   // Навігація до профілю користувача
@@ -576,6 +1046,33 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
   const clearSearch = () => {
     setSearchQuery('');
     setShowSuggestions(false);
+  };
+
+  // Функція для показу всіх постів з збереженням налаштування
+  const showAllPosts = async () => {
+    setCurrentWeather(null);
+    setSearchQuery('');
+    setWeatherFilterDisabled(true);
+    await saveWeatherFilterSetting(true); // Зберігаємо, що фільтрація вимкнена
+    fetchAllPosts(session);
+  };
+
+  // Функція для повернення фільтрації по погоді
+  const enableWeatherFilter = async () => {
+    setWeatherFilterDisabled(false);
+    await saveWeatherFilterSetting(false); // Зберігаємо, що фільтрація увімкнена
+    getCurrentWeatherAndFetchPosts(session);
+  };
+
+  // Функція-переключалка для кнопки
+  const toggleWeatherFilter = async () => {
+    if (weatherFilterDisabled) {
+      // Якщо зараз показуються всі пости, переключаємо на фільтрацію по погоді
+      await enableWeatherFilter();
+    } else {
+      // Якщо зараз показуються пости по погоді, переключаємо на всі пости
+      await showAllPosts();
+    }
   };
 
   const renderUserSuggestion = ({ item }: { item: UserSuggestion }) => (
@@ -722,9 +1219,9 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0000ff" />
         <Text>Завантаження постів...</Text>
-        {currentWeather && (
+        {currentWeather && !weatherFilterDisabled && (
           <Text style={styles.filterInfo}>
-            Фільтруємо по температурі: {Math.round(currentWeather.temp)}°C (±2°) та погоді: {currentWeather.weather_type}
+            Фільтруємо по температурі: {Math.round(currentWeather.temp)}°C (±3°) та погоді: {currentWeather.weather_type}
           </Text>
         )}
       </View>
@@ -735,7 +1232,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.titleContainer}>
         <Text style={styles.title}>Стрічка постів</Text>
-        {currentWeather && (
+        {currentWeather && !weatherFilterDisabled && (
           <Text style={styles.filterSubtitle}>
             Схожа погода: {Math.round(currentWeather.temp)}°C, {currentWeather.weather_type}
           </Text>
@@ -841,7 +1338,7 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
           flex: 1, 
           justifyContent: 'center', 
           alignItems: 'center' 
-        } : undefined}
+        } : { paddingBottom: !searchQuery && activeTab !== 'following' ? 140 : 80 }}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
@@ -851,28 +1348,16 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
                   : 'Немає постів від користувачів, на яких ви підписані')
                 : (searchQuery 
                   ? `Немає постів від користувача "${searchQuery}"` 
-                  : (currentWeather 
+                  : (currentWeather && !weatherFilterDisabled
                     ? 'Немає постів з подібною погодою' 
                     : 'Поки немає жодних постів у спільноті'
                   ))}
             </Text>
-            {(currentWeather || searchQuery) && activeTab !== 'following' && (
-              <TouchableOpacity 
-                style={styles.showAllButton}
-                onPress={() => {
-                  setCurrentWeather(null);
-                  setSearchQuery('');
-                  fetchAllPosts(session);
-                }}
-              >
-                <Text style={styles.showAllButtonText}>Показати всі пости</Text>
-              </TouchableOpacity>
-            )}
             {activeTab === 'following' && followingUserIds.length === 0 && (
               <TouchableOpacity 
                 style={styles.showAllButton}
                 onPress={() => {
-                  setActiveTab('all');
+                  handleTabChange('all');
                   navigation.navigate('Social'); // Перехід до соціального розділу для пошуку користувачів
                 }}
               >
@@ -883,6 +1368,18 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         )}
         onScrollBeginDrag={() => setShowSuggestions(false)}
       />
+      
+      {/* Кнопка переключення фільтра - завжди видима (крім пошуку і вкладки підписок) */}
+      {!searchQuery && activeTab !== 'following' && (
+        <TouchableOpacity
+          style={styles.toggleFilterButton}
+          onPress={toggleWeatherFilter}
+        >
+          <Text style={styles.toggleFilterButtonText}>
+            {weatherFilterDisabled ? ' Показати пости по погоді' : ' Показати всі пости'}
+          </Text>
+        </TouchableOpacity>
+      )}
       
       <TouchableOpacity
         style={styles.myPostsButton}
@@ -957,6 +1454,19 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginBottom: 12,
+  },
+  // Стилі для інформації про вимкнену фільтрацію
+  allPostsInfo: {
+    backgroundColor: '#e8f5e8',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  allPostsText: {
+    fontSize: 14,
+    color: '#2e7d32',
+    fontWeight: '600',
   },
   // Стилі для вкладок
   tabsContainer: {
@@ -1164,6 +1674,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 12,
     marginBottom: 8,
+    resizeMode: 'contain',
   },
   outfitCategory: {
     fontSize: 12,
@@ -1234,6 +1745,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#1976d2',
     fontWeight: '500',
+  },
+  // Кнопка переключення фільтра над кнопкою "Мої пости"
+  toggleFilterButton: {
+    position: 'absolute',
+    bottom: 80, // Розміщуємо над кнопкою "Мої пости"
+    alignSelf: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#1976d2',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  toggleFilterButtonText: {
+    color: '#1976d2',
+    fontSize: 14,
+    fontWeight: '600',
   },
   myPostsButton: {
     position: 'absolute',
