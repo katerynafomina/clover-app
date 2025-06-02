@@ -52,7 +52,7 @@ const categories: Category[] = [
         id: 8,
         name: 'Плаття',
         image: require('../assets/categories/dress.png'),
-        subcategories: ['Літні плаття', 'Демісезонні плаття']
+        subcategories: ['Плаття']
     },
     {
         id: 9,
