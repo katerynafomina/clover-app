@@ -59,6 +59,8 @@ export default function Home() {
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [lastUsedTemperature, setLastUsedTemperature] = useState<number | null>(null);
+
 
   const handleLocationChange = (
     city: string,
@@ -106,6 +108,16 @@ export default function Home() {
       fetchWeatherData();
     }
   }, [latitude, longitude]);
+
+  useEffect(() => {
+    if (weatherData) {
+        const nowTemp = weatherData?.temp;
+        const futureTemp = weatherData?.forecast?.[1]?.main?.temp;
+        const temperature = Math.round((nowTemp + futureTemp) / 2);
+
+      setLastUsedTemperature(temperature);
+    }
+  }, [weatherData]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -173,7 +185,7 @@ export default function Home() {
   // Генерація рекомендованих комірок на основі погоди
   useEffect(() => {
     if (weatherData && wardrobeItems.length > 0) {
-      const temperature = weatherData.temp;
+      const temperature = lastUsedTemperature || Math.round(weatherData.temp);
 
       // Отримуємо рекомендовані категорії за температурою
       const recommendedCategories = getCategoriesByTemperature(temperature);
@@ -299,7 +311,7 @@ export default function Home() {
       });
     } else {
     }
-  }, [weatherData]);
+  }, [lastUsedTemperature]);
 
   const getUniqueSubCategories = () => {
     const subcategories = Array.from(
