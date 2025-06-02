@@ -58,6 +58,7 @@ interface Post {
 }
 
 interface UserProfile {
+  id: string;
   username: string;
   avatar_url: string | null;
   created_at: string;
@@ -65,6 +66,8 @@ interface UserProfile {
   total_likes: number;
   total_saves: number;
   total_comments: number;
+  followers_count: number;
+  following_count: number;
 }
 
 interface UserProfileScreenProps {
@@ -81,6 +84,11 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
   const [loading, setLoading] = useState(true);
   const [postsLoading, setPostsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  
+  // Стани для підписок
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
   
   // Стани для коментарів
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
@@ -107,6 +115,164 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
 
     return () => subscription.unsubscribe();
   }, [username]);
+
+  useEffect(() => {
+    if (session && userProfile) {
+      checkIfOwnProfile();
+      if (!isOwnProfile) {
+        checkFollowStatus();
+      }
+    }
+  }, [session, userProfile]);
+
+  // Перевірка чи це власний профіль
+  const checkIfOwnProfile = async () => {
+    if (!session || !userProfile) return;
+    
+    const { data: currentUserProfile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', session.user.id)
+      .single();
+    
+    setIsOwnProfile(currentUserProfile?.username === username);
+  };
+
+  // Перевірка статусу підписки
+  const checkFollowStatus = async () => {
+    if (!session || !userProfile) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('followers')
+        .select('id')
+        .eq('follower_id', session.user.id)
+        .eq('following_id', userProfile.id)
+        .single();
+
+      if (!error && data) {
+        setIsFollowing(true);
+      } else {
+        setIsFollowing(false);
+      }
+    } catch (error) {
+      console.error('Error checking follow status:', error);
+      setIsFollowing(false);
+    }
+  };
+
+  // Отримання кількості фоловерів та підписок
+  const fetchFollowCounts = async (userId: string) => {
+    try {
+      // Кількість фоловерів
+      const { count: followersCount } = await supabase
+        .from('followers')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', userId);
+
+      // Кількість підписок
+      const { count: followingCount } = await supabase
+        .from('followers')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', userId);
+
+      return {
+        followers_count: followersCount || 0,
+        following_count: followingCount || 0
+      };
+    } catch (error) {
+      console.error('Error fetching follow counts:', error);
+      return {
+        followers_count: 0,
+        following_count: 0
+      };
+    }
+  };
+
+  // Обробка підписки/відписки
+  const handleFollow = async () => {
+    if (!session) {
+      Alert.alert('Увага', 'Щоб підписатися, необхідно увійти в систему');
+      navigation.navigate('Auth');
+      return;
+    }
+
+    if (!userProfile) return;
+
+    try {
+      setIsFollowLoading(true);
+
+      if (isFollowing) {
+        // Відписуємося
+        const { error } = await supabase
+          .from('followers')
+          .delete()
+          .eq('follower_id', session.user.id)
+          .eq('following_id', userProfile.id);
+
+        if (error) {
+          console.error('Error unfollowing:', error);
+          Alert.alert('Помилка', 'Не вдалося відписатися');
+          return;
+        }
+
+        setIsFollowing(false);
+        setUserProfile(prev => prev ? {
+          ...prev,
+          followers_count: Math.max(0, prev.followers_count - 1)
+        } : null);
+
+      } else {
+        // Підписуємося
+        const { error } = await supabase
+          .from('followers')
+          .insert([
+            {
+              follower_id: session.user.id,
+              following_id: userProfile.id
+            }
+          ]);
+
+        if (error) {
+          console.error('Error following:', error);
+          Alert.alert('Помилка', 'Не вдалося підписатися');
+          return;
+        }
+
+        setIsFollowing(true);
+        setUserProfile(prev => prev ? {
+          ...prev,
+          followers_count: prev.followers_count + 1
+        } : null);
+      }
+
+    } catch (error) {
+      console.error('Error handling follow:', error);
+      Alert.alert('Помилка', 'Щось пішло не так');
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
+
+  // Навігація до списку фоловерів
+  const navigateToFollowers = () => {
+    if (!userProfile) return;
+    navigation.navigate('UserFollowers', { 
+      userId: userProfile.id, 
+      username: userProfile.username,
+      type: 'followers'
+    });
+  };
+
+  // Навігація до списку підписок
+  const navigateToFollowing = () => {
+    if (!userProfile) return;
+    navigation.navigate('UserFollowers', { 
+      userId: userProfile.id, 
+      username: userProfile.username,
+      type: 'following'
+    });
+  };
 
   // Навігація до деталей поста
   const navigateToPostDetail = (postId: number) => {
@@ -183,6 +349,9 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
         totalComments = commentsCount || 0;
       }
 
+      // Отримуємо кількість фоловерів та підписок
+      const followCounts = await fetchFollowCounts(profile.id);
+
       let avatarUrl = profile.avatar_url;
       if (avatarUrl && !avatarUrl.startsWith('http')) {
         const { data: avatarData } = await supabase.storage
@@ -195,13 +364,16 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
       }
 
       setUserProfile({
+        id: profile.id,
         username: profile.username,
         avatar_url: avatarUrl || DEFAULT_AVATAR_URL,
         created_at: userCreatedAt || profile.updated_at,
         total_posts: totalPosts,
         total_likes: totalLikes,
         total_saves: totalSaves,
-        total_comments: totalComments
+        total_comments: totalComments,
+        followers_count: followCounts.followers_count,
+        following_count: followCounts.following_count
       });
 
     } catch (error) {
@@ -722,7 +894,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
   const renderComment = ({ item }: { item: Comment }) => (
     <View style={styles.commentItem}>
       <Image 
-        source={{ uri: item.user.avatar_url }} 
+        source={{ uri: item.user.avatar_url || DEFAULT_AVATAR_URL }} 
         style={styles.commentAvatar}
         defaultSource={require('../../assets/icon.png')}
       />
@@ -886,7 +1058,7 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
       {/* Заголовок профілю */}
       <View style={styles.profileHeader}>
         <Image 
-          source={{ uri: userProfile.avatar_url }} 
+          source={{ uri: userProfile.avatar_url || DEFAULT_AVATAR_URL }} 
           style={styles.profileAvatar}
           defaultSource={require('../../assets/icon.png')}
         />
@@ -895,6 +1067,30 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
           <Text style={styles.profileDate}>
             Приєднався: {new Date(userProfile.created_at).toLocaleDateString()}
           </Text>
+          
+          {/* Кнопка підписки */}
+          {session && !isOwnProfile && (
+            <TouchableOpacity 
+              style={[
+                styles.followButton, 
+                isFollowing && styles.followingButton,
+                isFollowLoading && styles.followButtonLoading
+              ]}
+              onPress={handleFollow}
+              disabled={isFollowLoading}
+            >
+              {isFollowLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={[
+                  styles.followButtonText,
+                  isFollowing && styles.followingButtonText
+                ]}>
+                  {isFollowing ? 'Відписатися' : 'Підписатися'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -904,17 +1100,28 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
           <Text style={styles.profileStatNumber}>{userProfile.total_posts}</Text>
           <Text style={styles.profileStatLabel}>Постів</Text>
         </View>
+        
+        <TouchableOpacity 
+          style={styles.profileStatItem}
+          onPress={navigateToFollowers}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.profileStatNumber}>{userProfile.followers_count}</Text>
+          <Text style={styles.profileStatLabel}>Фоловерів</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.profileStatItem}
+          onPress={navigateToFollowing}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.profileStatNumber}>{userProfile.following_count}</Text>
+          <Text style={styles.profileStatLabel}>Підписок</Text>
+        </TouchableOpacity>
+        
         <View style={styles.profileStatItem}>
           <Text style={styles.profileStatNumber}>{userProfile.total_likes}</Text>
           <Text style={styles.profileStatLabel}>Лайків</Text>
-        </View>
-        <View style={styles.profileStatItem}>
-          <Text style={styles.profileStatNumber}>{userProfile.total_saves}</Text>
-          <Text style={styles.profileStatLabel}>Збережень</Text>
-        </View>
-        <View style={styles.profileStatItem}>
-          <Text style={styles.profileStatNumber}>{userProfile.total_comments}</Text>
-          <Text style={styles.profileStatLabel}>Коментарів</Text>
         </View>
       </View>
 
@@ -1087,6 +1294,32 @@ const styles = StyleSheet.create({
   profileDate: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 12,
+  },
+  followButton: {
+    backgroundColor: '#1976d2',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  followingButton: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  followButtonLoading: {
+    opacity: 0.7,
+  },
+  followButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  followingButtonText: {
+    color: '#666',
   },
   profileStats: {
     backgroundColor: '#fff',
@@ -1098,6 +1331,7 @@ const styles = StyleSheet.create({
   },
   profileStatItem: {
     alignItems: 'center',
+    flex: 1,
   },
   profileStatNumber: {
     fontSize: 20,

@@ -1,24 +1,15 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useFocusEffect } from "@react-navigation/native";
-import {
-  StyleSheet,
-  View,
-  Text,
-  Image,
-  ScrollView,
-  Pressable,
-  TouchableOpacity,
-  Alert,
-  Modal,
-} from "react-native";
-import GetDate from "../components/date";
-import LocationToCity from "../components/location";
-import { supabase } from "../lib/supabase";
-import { Session } from "@supabase/supabase-js";
-import { categories, Category } from "../constants/Categoris";
-import Button from "../components/Button";
-import getCategoriesByTemperature from "../components/GetSubCategoryForTemperature";
-import filterAndRandomizeCategories from "../components/GetCategoryForOutfut";
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { StyleSheet, View, Text, Image, ScrollView, Pressable, TouchableOpacity, Alert, Modal, FlatList } from 'react-native';
+import GetDate from '../components/date';
+import LocationToCity from '../components/location';
+import { supabase } from '../lib/supabase';
+import { Session } from '@supabase/supabase-js';
+import { categories, Category } from '../constants/Categoris';
+import Button from '../components/Button';
+import getCategoriesByTemperature from '../components/GetSubCategoryForTemperature';
+import filterAndRandomizeCategories from '../components/GetCategoryForOutfut';
+
 import { saveFeedback, loadFeedback } from "../components/feedback";
 
 // Інтерфейс для елемента гардеробу

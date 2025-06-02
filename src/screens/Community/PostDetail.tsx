@@ -37,6 +37,9 @@ interface Comment {
     username: string;
     avatar_url: string | null;
   };
+  likes_count: number;
+  is_liked: boolean;
+  isLikeLoading?: boolean;
 }
 
 interface PostDetail {
@@ -341,8 +344,29 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
         return;
       }
 
-      const commentsWithAvatars = await Promise.all(
+      // Отримуємо інформацію про лайки коментарів
+      const commentsWithLikes = await Promise.all(
         (data || []).map(async (comment: any) => {
+          // Рахуємо лайки для коментаря
+          const { count: likesCount } = await supabase
+            .from('comment_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('comment_id', comment.id);
+
+          // Перевіряємо чи поточний користувач лайкнув коментар
+          let isLiked = false;
+          if (session) {
+            const { data: userLike } = await supabase
+              .from('comment_likes')
+              .select('id')
+              .eq('user_id', session.user.id)
+              .eq('comment_id', comment.id)
+              .single();
+            
+            isLiked = !!userLike;
+          }
+
+          // Обробляємо аватар
           let avatarUrl = comment.profiles.avatar_url;
           if (avatarUrl && !avatarUrl.startsWith('http')) {
             const { data: avatarData } = await supabase.storage
@@ -363,12 +387,14 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
             user: {
               username: comment.profiles.username,
               avatar_url: avatarUrl || DEFAULT_AVATAR_URL
-            }
+            },
+            likes_count: likesCount || 0,
+            is_liked: isLiked
           };
         })
       );
 
-      setComments(commentsWithAvatars);
+      setComments(commentsWithLikes);
     } catch (error) {
       console.error('Error fetching comments:', error);
     } finally {
@@ -381,7 +407,7 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
     navigation.navigate('UserProfile', { username });
   };
 
-  // Обробка лайків
+  // Обробка лайків постів
   const handleLike = async () => {
     if (!session) {
       Alert.alert('Увага', 'Щоб поставити лайк, необхідно увійти в систему');
@@ -447,6 +473,99 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
     } finally {
       setPost(currentPost => 
         currentPost ? { ...currentPost, isLikeLoading: false } : null
+      );
+    }
+  };
+
+  // Обробка лайків коментарів
+  const handleCommentLike = async (commentId: number) => {
+    if (!session) {
+      Alert.alert('Увага', 'Щоб поставити лайк, необхідно увійти в систему');
+      navigation.navigate('Auth');
+      return;
+    }
+
+    try {
+      const comment = comments.find(c => c.id === commentId);
+      if (!comment) return;
+
+      // Оновлюємо стан завантаження
+      setComments(prevComments => 
+        prevComments.map(c => 
+          c.id === commentId 
+            ? { ...c, isLikeLoading: true }
+            : c
+        )
+      );
+
+      const isLiked = comment.is_liked;
+
+      if (isLiked) {
+        // Видаляємо лайк
+        const { error } = await supabase
+          .from('comment_likes')
+          .delete()
+          .eq('user_id', session.user.id)
+          .eq('comment_id', commentId);
+
+        if (error) {
+          console.error('Error removing comment like:', error);
+          Alert.alert('Помилка', 'Не вдалося видалити лайк з коментаря');
+          return;
+        }
+
+        // Оновлюємо стан
+        setComments(prevComments => 
+          prevComments.map(c => 
+            c.id === commentId 
+              ? { 
+                  ...c, 
+                  is_liked: false, 
+                  likes_count: c.likes_count > 0 ? c.likes_count - 1 : 0,
+                  isLikeLoading: false
+                }
+              : c
+          )
+        );
+      } else {
+        // Додаємо лайк
+        const { error } = await supabase
+          .from('comment_likes')
+          .insert([
+            { user_id: session.user.id, comment_id: commentId }
+          ]);
+
+        if (error) {
+          console.error('Error adding comment like:', error);
+          Alert.alert('Помилка', 'Не вдалося додати лайк до коментаря');
+          return;
+        }
+
+        // Оновлюємо стан
+        setComments(prevComments => 
+          prevComments.map(c => 
+            c.id === commentId 
+              ? { 
+                  ...c, 
+                  is_liked: true, 
+                  likes_count: c.likes_count + 1,
+                  isLikeLoading: false
+                }
+              : c
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error handling comment like:', error);
+      Alert.alert('Помилка', 'Щось пішло не так при обробці лайка коментаря');
+    } finally {
+      // Видаляємо стан завантаження у випадку помилки
+      setComments(prevComments => 
+        prevComments.map(c => 
+          c.id === commentId 
+            ? { ...c, isLikeLoading: false }
+            : c
+        )
       );
     }
   };
@@ -587,7 +706,9 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
           user: {
             username: newCommentData.profiles.username,
             avatar_url: avatarUrl || DEFAULT_AVATAR_URL
-          }
+          },
+          likes_count: 0,
+          is_liked: false
         };
 
         setComments(prev => [...prev, formattedComment]);
@@ -697,6 +818,36 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
           </Text>
         </View>
         <Text style={styles.commentText}>{comment.comment}</Text>
+        
+        {/* Кнопка лайка коментаря */}
+        <View style={styles.commentActions}>
+          <TouchableOpacity 
+            style={[
+              styles.commentLikeButton,
+              comment.is_liked && styles.commentLikeButtonActive
+            ]}
+            onPress={() => handleCommentLike(comment.id)}
+            disabled={comment.isLikeLoading}
+          >
+            {comment.isLikeLoading ? (
+              <ActivityIndicator size="small" color="#1976d2" style={styles.commentLikeIcon} />
+            ) : (
+              <Image
+                source={comment.is_liked 
+                  ? require('../../assets/heart_filled.png')
+                  : require('../../assets/heart.png')
+                }
+                style={styles.commentLikeIcon}
+              />
+            )}
+            <Text style={[
+              styles.commentLikeText,
+              comment.is_liked && styles.commentLikeTextActive
+            ]}>
+              {comment.likes_count > 0 ? comment.likes_count : ''}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -1365,6 +1516,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     lineHeight: 20,
+    marginBottom: 8,
+  },
+  // Нові стилі для лайків коментарів
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  commentLikeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    backgroundColor: 'transparent',
+  },
+  commentLikeButtonActive: {
+    backgroundColor: '#fff3e0',
+  },
+  commentLikeIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 4,
+  },
+  commentLikeText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  commentLikeTextActive: {
+    color: '#1976d2',
+    fontWeight: 'bold',
   },
 });
 
