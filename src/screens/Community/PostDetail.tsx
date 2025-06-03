@@ -834,8 +834,8 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
             ) : (
               <Image
                 source={comment.is_liked 
-                  ? require('../../assets/heart_filled.png')
-                  : require('../../assets/heart.png')
+                  ? require('../../assets/heart.png')
+                  : require('../../assets/heart_filled.png')
                 }
                 style={styles.commentLikeIcon}
               />
@@ -987,8 +987,8 @@ const PostDetailScreen: React.FC<PostDetailScreenProps> = ({ route, navigation }
           ) : (
             <Image
               source={post.is_liked 
-                ? require('../../assets/heart_filled.png')
-                : require('../../assets/heart.png')
+                ? require('../../assets/heart.png')
+                : require('../../assets/heart_filled.png')
               }
               style={styles.buttonIconImage}
             />

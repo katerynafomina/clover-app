@@ -582,7 +582,7 @@ const MyPosts: React.FC = () => {
           style={styles.deleteButton}
           onPress={() => deletePost(item.post_id)}
         >
-          <Text style={styles.deleteButtonText}>✖</Text>
+          <Image source={require('../../assets/bin.png')} style={{width:16, height:16}} />
         </TouchableOpacity>
       </View>
 
@@ -592,7 +592,7 @@ const MyPosts: React.FC = () => {
         <View style={styles.weatherDetails}>
           <Text style={styles.weatherType}>{item.weather_type}</Text>
           <Text style={styles.temperature}>
-            {Math.round(item.min_tempurature)}° - {Math.round(item.max_tempurature)}°C
+            {Math.round(item.min_tempurature)}°C
           </Text>
         </View>
         {item.weather_icon && (
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#ff4d4d',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },

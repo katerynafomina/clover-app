@@ -980,8 +980,8 @@ const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ route, navigation
           ) : (
             <Image
               source={item.is_liked 
-                ? require('../../assets/heart_filled.png')
-                : require('../../assets/heart.png')
+                ? require('../../assets/heart.png')
+                : require('../../assets/heart_filled.png')
               }
               style={styles.buttonIconImage}
             />

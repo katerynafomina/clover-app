@@ -1177,8 +1177,8 @@ const AllPosts: React.FC<{ navigation: any }> = ({ navigation }) => {
         <View style={styles.statItem}>
           <Image
             source={item.is_liked 
-              ? require('../../assets/heart_filled.png')
-              : require('../../assets/heart.png')
+              ? require('../../assets/heart.png')
+              : require('../../assets/heart_filled.png')
             }
             style={styles.statIconImage}
           />

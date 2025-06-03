@@ -1,14 +1,25 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
-import { StyleSheet, View, Text, Image, ScrollView, Pressable, TouchableOpacity, Alert, Modal, FlatList } from 'react-native';
-import GetDate from '../components/date';
-import LocationToCity from '../components/location';
-import { supabase } from '../lib/supabase';
-import { Session } from '@supabase/supabase-js';
-import { categories, Category } from '../constants/Categoris';
-import Button from '../components/Button';
-import getCategoriesByTemperature from '../components/GetSubCategoryForTemperature';
-import filterAndRandomizeCategories from '../components/GetCategoryForOutfut';
+import React, { useState, useEffect, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  Image,
+  ScrollView,
+  Pressable,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  FlatList,
+} from "react-native";
+import GetDate from "../components/date";
+import LocationToCity from "../components/location";
+import { supabase } from "../lib/supabase";
+import { Session } from "@supabase/supabase-js";
+import { categories, Category } from "../constants/Categoris";
+import Button from "../components/Button";
+import getCategoriesByTemperature from "../components/GetSubCategoryForTemperature";
+import filterAndRandomizeCategories from "../components/GetCategoryForOutfut";
 
 import { saveFeedback, loadFeedback } from "../components/feedback";
 
@@ -50,8 +61,9 @@ export default function Home() {
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
-  const [lastUsedTemperature, setLastUsedTemperature] = useState<number | null>(null);
-
+  const [lastUsedTemperature, setLastUsedTemperature] = useState<number | null>(
+    null
+  );
 
   const handleLocationChange = (
     city: string,
@@ -102,9 +114,9 @@ export default function Home() {
 
   useEffect(() => {
     if (weatherData) {
-        const nowTemp = weatherData?.temp;
-        const futureTemp = weatherData?.forecast?.[1]?.main?.temp;
-        const temperature = Math.round((nowTemp + futureTemp) / 2);
+      const nowTemp = weatherData?.temp;
+      const futureTemp = weatherData?.forecast?.[1]?.main?.temp;
+      const temperature = Math.round((nowTemp + futureTemp) / 2);
 
       setLastUsedTemperature(temperature);
     }
@@ -807,7 +819,7 @@ export default function Home() {
             throw InsertError;
           }
 
-          Alert.alert("Успішно", "Образ та його layout успішно збережено!");
+          Alert.alert("Успішно", "Образ успішно збережено!");
         }
       }
     } catch (error) {
@@ -877,6 +889,38 @@ export default function Home() {
                 </Text>
               </View>
             </View>
+            <FlatList
+              style={{ maxHeight: 150, marginBottom: 20 , alignSelf: "center"}}
+              data={weatherData?.forecast}
+              keyExtractor={(item) => item.dt.toString()}
+              renderItem={({ item }) => {
+                const date = new Date(item.dt * 1000);
+                return (
+                  <View style={{ alignItems: "center" }}>
+                    <Image
+                      source={{
+                        uri: `http://openweathermap.org/img/wn/${item.weather[0].icon}.png`,
+                      }}
+                      style={{ width: 60, height: 50 }}
+                    />
+                    <Text style={{ fontSize: 20, marginBottom: 12 }}>
+                      {item.main.temp > 0 ? "+" : ""}
+                      {Math.round(item.main.temp)}°
+                    </Text>
+                    <Text style={{ fontSize: 15 }}>
+                      {date.toLocaleTimeString("uk-UA", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                );
+              }}
+              numColumns={8}
+              contentContainerStyle={{}}
+              columnWrapperStyle={{ gap: 10 }}
+              scrollEnabled={false}
+            />
           </View>
         </View>
 
@@ -1641,14 +1685,18 @@ const styles = StyleSheet.create({
     gap: 15,
   },
   likeButton: {
-    backgroundColor: "#d4edda",
+    backgroundColor: "transparent",
     padding: 10,
-    borderRadius: 20,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   dislikeButton: {
-    backgroundColor: "#f8d7da",
+    backgroundColor: "transparent",
     padding: 10,
-    borderRadius: 20,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   likeText: { fontSize: 18 },
   dislikeText: { fontSize: 18 },
