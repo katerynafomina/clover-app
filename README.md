@@ -1,83 +1,55 @@
 # Clover App
 
-Clover App is a weather-based outfit suggestion application that helps users choose what to wear based on current weather conditions. The app provides functionalities to view the weather, manage a personal wardrobe, and get outfit recommendations.
+**Clover App** — це мобільний застосунок, що рекомендує образи одягу залежно від поточних погодних умов. Додаток дозволяє переглядати погоду, керувати власним гардеробом і отримувати персоналізовані рекомендації щодо вбрання.
 
-## Features
+## Основні можливості
 
-- **Weather Display**: Shows the current weather for the user's location.
-- **Wardrobe Management**: Allows users to add, view, and delete clothing items.
-- **Outfit Recommendations**: Suggests outfits based on the weather.
-- **Custom Outfits**: Users can create and save their own outfits.
-- **Outfit Calendar**: Tracks past outfits and weather conditions.
+- **Відображення погоди**: показує актуальні погодні умови за місцем перебування користувача.
+- **Керування гардеробом**: дає змогу додавати, переглядати та видаляти речі.
+- **Рекомендації образів**: пропонує образи, які відповідають погоді.
+- **Користувацькі образи**: можливість створювати й зберігати власні комбінації.
+- **Календар образів**: зберігає історію носіння вбрання з урахуванням погоди.
+- **Соціальні функції**: можливість публікувати свої образи і надихатися образами інших.
 
-## Technologies Used
+## 🛠️ Використані технології
 
-- **Expo.js**: For building the React Native application.
-- **Supabase**: For database management and user authentication.
-- **React Native**: For developing the mobile application interface.
+- **Expo.js** — для створення застосунку на React Native.
+- **Supabase** — як база даних та засіб автентифікації користувачів.
+- **React Native** — для розробки мобільного інтерфейсу.
 
-## Database Schema
+## ▶Початок роботи
 
-The database consists of several tables managed in Supabase:
+### Вимоги
 
-### Tables
+- Встановлений **Node.js**
+- **Expo CLI**
 
-- **profiles**: Stores user profile information.
-- **wardrobe**: Stores information about clothing items.
-- **outfits**: Stores information about outfits.
-- **outfit_item**: Associates clothing items with outfits.
-- **weather**: Stores weather data for different locations.
+### Встановлення
 
-### Relationships
-
-- `profiles` is connected to `auth.users` for authentication.
-- `wardrobe` is linked to `profiles` via `user_id`.
-- `outfits` is linked to `profiles` via `user_id` and to `weather` via `weather_id`.
-- `outfit_item` connects `outfits` and `wardrobe`.
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js
-- Expo CLI
-- Supabase account
-
-### Installation
-
-1. Clone the repository:
+1. Клонування репозиторію:
     ```sh
     git clone https://github.com/katerynafomina/clover-app.git
     cd clover-app
     ```
 
-2. Install dependencies:
+2. Встановлення залежностей:
     ```sh
     npm install
     ```
 
-3. Configure Supabase:
-   - Create a Supabase project.
-   - Set up your Supabase URL and API Key in the environment variables.
-
-4. Start the application:
+3. Запуск застосунку:
     ```sh
     npm start
     ```
 
-## Usage
+## Як користуватися
 
-1. Register or log in to the application.
-2. Add clothing items to your wardrobe.
-3. View the weather and get outfit suggestions.
-4. Save and manage your outfits.
+1. Зареєструйтесь або увійдіть у додаток.
+2. Додайте одяг у гардероб.
+3. Перегляньте погоду та отримайте рекомендації.
+4. Зберігайте та керуйте власними образами.
 
-## Authentication
+## Автентифікація
 
-Supabase handles user authentication, supporting both email/password login and OAuth providers. Users' sessions are managed via tokens stored securely in the application.
-
-## Contribution
-
-Contributions are welcome! Please open an issue or submit a pull request for any improvements.
-
+Для автентифікації використовується Supabase. Підтримується вхід за електронною поштою. Сесії користувачів захищено за допомогою токенів.
 
